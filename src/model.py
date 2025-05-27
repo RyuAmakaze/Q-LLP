@@ -3,6 +3,7 @@ import torch.nn as nn
 from qiskit import QuantumCircuit, Aer, execute
 from qiskit.circuit import Parameter
 import numpy as np
+from config import MEASURE_SHOTS, NUM_CLASSES
 
 class QuantumLLPModel(nn.Module):
     def __init__(self, n_qubits):
@@ -24,14 +25,14 @@ class QuantumLLPModel(nn.Module):
     def measure(self, qc):
         qc.measure_all()
         backend = Aer.get_backend("qasm_simulator")
-        job = execute(qc, backend=backend, shots=100)
+        job = execute(qc, backend=backend, shots=MEASURE_SHOTS)
         result = job.result().get_counts()
         probs = np.zeros(2**self.n_qubits)
         for state, count in result.items():
             idx = int(state, 2)
             probs[idx] = count
         probs /= probs.sum()
-        return torch.tensor(probs[:2], dtype=torch.float32)  # 2クラスのみ使用
+        return torch.tensor(probs[:NUM_CLASSES], dtype=torch.float32)
 
     def forward(self, x_batch):
         probs_batch = []
