@@ -13,7 +13,9 @@ def train_model(model, dataloader, teacher_probs, epochs=10, lr=0.01):
         for i, (x_batch, _) in enumerate(dataloader):
             optimizer.zero_grad()
             pred_probs = model(x_batch)
-            loss = loss_fn(pred_probs, teacher_probs[i])
+            bag_pred = pred_probs.mean(dim=0)
+            target = teacher_probs[i].to(bag_pred.dtype)
+            loss = loss_fn(bag_pred, target)
             loss.backward()
             optimizer.step()
 
