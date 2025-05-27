@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from config import DEFAULT_EPOCHS, DEFAULT_LR
 
-def train_model(model, dataloader, teacher_probs, epochs=10, lr=0.01):
+def train_model(model, dataloader, teacher_probs, epochs=DEFAULT_EPOCHS, lr=DEFAULT_LR):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 
