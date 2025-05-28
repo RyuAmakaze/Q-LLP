@@ -3,8 +3,9 @@ import torch
 
 # Dataset settings
 DATA_ROOT = "./data"
-SUBSET_SIZE = 100
-BATCH_SIZE = 10
+SUBSET_SIZE = 1000
+BAG_SIZE = 100  # number of samples per bag
+BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 4
 SHUFFLE_DATA = False
 DATASET = "MNIST"  # Options: MNIST, CIFAR10, CIFAR100

@@ -1,5 +1,9 @@
 import types
 import torch
+import random
+import math
+from typing import Sequence, List
+from torch.utils.data import Sampler
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -67,3 +71,53 @@ def compute_proportions(labels, num_classes):
     """Compute normalized label counts for a batch."""
     counts = torch.bincount(labels, minlength=num_classes).float()
     return counts / counts.sum()
+
+
+class FixedBatchSampler(Sampler[List[int]]):
+    """Yield predefined lists of indices as batches."""
+
+    def __init__(self, batches: Sequence[Sequence[int]]):
+        self.batches = [list(b) for b in batches]
+
+    def __iter__(self):
+        return iter(self.batches)
+
+    def __len__(self):
+        return len(self.batches)
+
+
+def create_fixed_proportion_batches(dataset, teacher_probs_list, bag_size, num_classes):
+    """Return a FixedBatchSampler where each batch matches the given proportions."""
+    if hasattr(dataset, "indices"):
+        indices = list(dataset.indices)
+        base_dataset = dataset.dataset
+    else:
+        indices = list(range(len(dataset)))
+        base_dataset = dataset
+    targets = getattr(base_dataset, "targets", getattr(base_dataset, "labels"))
+
+    class_to_indices = {i: [] for i in range(num_classes)}
+    for idx in indices:
+        label = int(targets[idx])
+        if label < num_classes:
+            class_to_indices[label].append(idx)
+
+    for idx_list in class_to_indices.values():
+        random.shuffle(idx_list)
+
+    batches = []
+    for probs in teacher_probs_list:
+        raw = [p * bag_size for p in probs]
+        counts = [math.floor(c) for c in raw]
+        remaining = bag_size - sum(counts)
+        fractions = [r - math.floor(r) for r in raw]
+        for cls in sorted(range(num_classes), key=lambda i: fractions[i], reverse=True)[:remaining]:
+            counts[cls] += 1
+
+        batch = []
+        for cls, count in enumerate(counts):
+            batch.extend(class_to_indices[cls][:count])
+            class_to_indices[cls] = class_to_indices[cls][count:]
+        batches.append(batch)
+
+    return FixedBatchSampler(batches)
