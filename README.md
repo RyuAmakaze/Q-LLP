@@ -17,6 +17,16 @@ Quantum Learning from Label Proportion
    ```
    学習が完了すると `trained_quantum_llp.pt` が作成されます。
 
+## Docker での実行
+1. Docker イメージをビルドします。
+   ```bash
+   docker build -t q-llp -f Dockerfile/Dockerfile .
+   ```
+2. コンテナを起動して学習を実行します。
+   ```bash
+   docker run --rm q-llp
+   ```
+
 ## テスト
 `pytest` を実行してユニットテストを確認できます。
 ```bash
