@@ -1,2 +1,24 @@
 # Q-LLP
 Quantum Learning from Label Proportion
+
+## 実行方法
+1. 任意で仮想環境を作成します。
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+2. 依存パッケージをインストールします。
+   ```bash
+   pip install torch torchvision qiskit pytest
+   ```
+3. 学習を実行します。
+   ```bash
+   python src/run.py
+   ```
+   学習が完了すると `trained_quantum_llp.pt` が作成されます。
+
+## テスト
+`pytest` を実行してユニットテストを確認できます。
+```bash
+pytest
+```
