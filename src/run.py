@@ -16,6 +16,7 @@ from config import (
     RUN_LR,
     TEACHER_PROBS_EVEN,
     TEACHER_PROBS_ODD,
+    DEVICE,
 )
 from data_utils import get_dataset_class, get_transform
 
@@ -37,14 +38,14 @@ val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 teacher_probs_train = torch.tensor([
     TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
     for i in range(len(train_loader))
-])
+], device=DEVICE)
 teacher_probs_val = torch.tensor([
     TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
     for i in range(len(val_loader))
-])
+], device=DEVICE)
 
 # 3. モデルの定義と訓練
-model = QuantumLLPModel(n_qubits=NUM_QUBITS)
+model = QuantumLLPModel(n_qubits=NUM_QUBITS).to(DEVICE)
 train_model(
     model,
     train_loader,
@@ -53,6 +54,7 @@ train_model(
     teacher_probs_val,
     epochs=RUN_EPOCHS,
     lr=RUN_LR,
+    device=DEVICE,
 )
 
 # 4. モデル保存
