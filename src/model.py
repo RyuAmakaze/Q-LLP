@@ -1,9 +1,30 @@
 import torch
 import torch.nn as nn
-from qiskit import QuantumCircuit, Aer, execute
-from qiskit.circuit import Parameter
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
 import numpy as np
 from config import MEASURE_SHOTS, NUM_CLASSES
+
+
+def compute_expectations(qc, shots=MEASURE_SHOTS):
+    """Simulate the circuit and return Z-basis expectations for each qubit."""
+    simulator = AerSimulator()
+    result = simulator.run(qc, shots=shots).result()
+    counts = result.get_counts()
+
+    num_qubits = qc.num_qubits
+    expectations = np.zeros(num_qubits)
+    total_shots = sum(counts.values())
+
+    for bitstring, cnt in counts.items():
+        for i, bit in enumerate(reversed(bitstring)):
+            if bit == "0":
+                expectations[i] += cnt
+            else:
+                expectations[i] -= cnt
+
+    expectations /= total_shots
+    return expectations
 
 class QuantumLLPModel(nn.Module):
     def __init__(self, n_qubits):
@@ -24,11 +45,11 @@ class QuantumLLPModel(nn.Module):
 
     def measure(self, qc):
         qc.measure_all()
-        backend = Aer.get_backend("qasm_simulator")
-        job = execute(qc, backend=backend, shots=MEASURE_SHOTS)
-        result = job.result().get_counts()
+        simulator = AerSimulator()
+        result = simulator.run(qc, shots=MEASURE_SHOTS).result()
+        counts = result.get_counts()
         probs = np.zeros(2**self.n_qubits)
-        for state, count in result.items():
+        for state, count in counts.items():
             idx = int(state, 2)
             probs[idx] = count
         probs /= probs.sum()
