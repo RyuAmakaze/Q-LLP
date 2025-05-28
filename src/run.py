@@ -1,43 +1,59 @@
 # train.py
 import torch
-from torch.utils.data import DataLoader, Subset
-from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Subset, random_split
+from torchvision import datasets
 from model import QuantumLLPModel
 from trainer import train_model
 from config import (
     DATA_ROOT,
     SUBSET_SIZE,
     BATCH_SIZE,
-    ENCODING_DIM,
     SHUFFLE_DATA,
+    DATASET,
+    VAL_SPLIT,
     NUM_QUBITS,
     RUN_EPOCHS,
     RUN_LR,
     TEACHER_PROBS_EVEN,
     TEACHER_PROBS_ODD,
 )
+from data_utils import get_dataset_class, get_transform
 
 # 1. データセットの準備
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Lambda(lambda x: x.view(-1)),  # flatten
-    transforms.Lambda(lambda x: x[:ENCODING_DIM])  # 次元削減
-])
+transform = get_transform()
+DatasetClass = get_dataset_class(DATASET)
+train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
+test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
+subset_indices = list(range(SUBSET_SIZE))
+subset = Subset(train_full, subset_indices)
+val_size = int(len(subset) * VAL_SPLIT)
+train_size = len(subset) - val_size
+train_subset, val_subset = random_split(subset, [train_size, val_size])
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=SHUFFLE_DATA)
+val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
 
-dataset = datasets.MNIST(root=DATA_ROOT, train=True, download=True, transform=transform)
-data_indices = list(range(SUBSET_SIZE))
-data_subset = Subset(dataset, data_indices)
-dataloader = DataLoader(data_subset, batch_size=BATCH_SIZE, shuffle=SHUFFLE_DATA)
 
 # 2. 教師のクラス分布（仮にbagごとに均等とする）
-teacher_probs = torch.tensor([
+teacher_probs_train = torch.tensor([
     TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
-    for i in range(len(dataloader))
+    for i in range(len(train_loader))
+])
+teacher_probs_val = torch.tensor([
+    TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
+    for i in range(len(val_loader))
 ])
 
 # 3. モデルの定義と訓練
 model = QuantumLLPModel(n_qubits=NUM_QUBITS)
-train_model(model, dataloader, teacher_probs, epochs=RUN_EPOCHS, lr=RUN_LR)
+train_model(
+    model,
+    train_loader,
+    val_loader,
+    teacher_probs_train,
+    teacher_probs_val,
+    epochs=RUN_EPOCHS,
+    lr=RUN_LR,
+)
 
 # 4. モデル保存
 torch.save(model.state_dict(), "trained_quantum_llp.pt")
