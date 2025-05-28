@@ -104,9 +104,16 @@ def create_fixed_proportion_batches(dataset, teacher_probs_list, bag_size, num_c
         targets = base_dataset.labels
 
     class_to_indices = {i: [] for i in range(num_classes)}
-    for idx in indices:
-        label = int(targets[idx])
+    for idx in dataset_indices:
+        root_idx = idx
+        ds = dataset
+        # Resolve the index through potentially nested Subset objects
+        while hasattr(ds, "indices"):
+            root_idx = ds.indices[root_idx]
+            ds = ds.dataset
+        label = int(targets[root_idx])
         if label < num_classes:
+            # store dataset-relative index
             class_to_indices[label].append(idx)
 
     for idx_list in class_to_indices.values():
