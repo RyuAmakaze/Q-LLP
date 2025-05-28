@@ -8,11 +8,12 @@ from data_utils import (
     get_transform,
     filter_indices_by_class,
     compute_proportions,
+    create_fixed_proportion_batches,
 )
 from config import (
     DATA_ROOT,
     SUBSET_SIZE,
-    BATCH_SIZE,
+    BAG_SIZE,
     SHUFFLE_DATA,
     DATASET,
     VAL_SPLIT,
@@ -40,21 +41,41 @@ subset = Subset(train_full, train_indices)
 val_size = int(len(subset) * VAL_SPLIT)
 train_size = len(subset) - val_size
 train_subset, val_subset = random_split(subset, [train_size, val_size])
-train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=SHUFFLE_DATA)
-val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
+print(f"Total subset size: {len(subset)}")
+print(f"Train subset size: {len(train_subset)} (bags: {len(train_subset)//BAG_SIZE})")
+print(f"Validation subset size: {len(val_subset)} (bags: {len(val_subset)//BAG_SIZE})")
+num_train_bags = len(train_subset) // BAG_SIZE
+num_val_bags = len(val_subset) // BAG_SIZE
+print(f"Bag size: {BAG_SIZE}")
+print(f"Number of training bags: {num_train_bags}")
+print(f"Number of validation bags: {num_val_bags}")
+
+teacher_probs_train_list = [
+    TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
+    for i in range(num_train_bags)
+]
+teacher_probs_val_list = [
+    TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
+    for i in range(num_val_bags)
+]
+
+train_sampler = create_fixed_proportion_batches(
+    train_subset, teacher_probs_train_list, BAG_SIZE, NUM_CLASSES
+)
+val_sampler = create_fixed_proportion_batches(
+    val_subset, teacher_probs_val_list, BAG_SIZE, NUM_CLASSES
+)
+
+train_loader = DataLoader(train_subset, batch_sampler=train_sampler)
+val_loader = DataLoader(val_subset, batch_sampler=val_sampler)
 test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
 test_subset = Subset(test_dataset, test_indices)
-test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(test_subset, batch_size=BAG_SIZE, shuffle=False)
+print(f"Test subset size: {len(test_subset)}")
 
 # 2. Teacher class distributions (alternating even/odd)
-teacher_probs_train = torch.tensor([
-    TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
-    for i in range(len(train_loader))
-], device=DEVICE)
-teacher_probs_val = torch.tensor([
-    TEACHER_PROBS_EVEN if i % 2 == 0 else TEACHER_PROBS_ODD
-    for i in range(len(val_loader))
-], device=DEVICE)
+teacher_probs_train = torch.tensor(teacher_probs_train_list, device=DEVICE)
+teacher_probs_val = torch.tensor(teacher_probs_val_list, device=DEVICE)
 
 # 3. Train model
 model = QuantumLLPModel(n_qubits=NUM_QUBITS).to(DEVICE)

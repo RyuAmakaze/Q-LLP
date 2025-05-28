@@ -24,9 +24,11 @@ def train_model(
         total_loss = 0.0
 
         for i, (x_batch, _) in enumerate(train_loader):
+            # Each DataLoader batch represents one bag
             optimizer.zero_grad()
             x_batch = x_batch.to(device)
             pred_probs = model(x_batch)
+            # Average predictions within the bag
             bag_pred = pred_probs.mean(dim=0)
             target = teacher_probs_train[i].to(device, dtype=bag_pred.dtype)
             loss = loss_fn(bag_pred, target)
@@ -41,6 +43,7 @@ def train_model(
         with torch.no_grad():
             val_total_loss = 0.0
             for j, (x_batch, _) in enumerate(val_loader):
+                # Validation is also performed bag by bag
                 x_batch = x_batch.to(device)
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
@@ -61,6 +64,7 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     ce_total = 0.0
     with torch.no_grad():
         for x_batch, y_batch in data_loader:
+            # Compute predictions for one bag at a time
             x_batch = x_batch.to(device)
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
