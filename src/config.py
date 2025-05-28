@@ -24,7 +24,3 @@ DEFAULT_EPOCHS = 10
 DEFAULT_LR = 0.01
 RUN_EPOCHS = 5
 RUN_LR = 0.1
-
-# Teacher probabilities for bags
-TEACHER_PROBS_EVEN = [0.1, 0.2, 0.3, 0.4]
-TEACHER_PROBS_ODD = [0.4, 0.3, 0.2, 0.1]
