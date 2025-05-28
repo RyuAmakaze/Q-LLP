@@ -28,7 +28,7 @@ def train_model(
             x_batch = x_batch.to(device)
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
-            target = teacher_probs_train[i].to(bag_pred.dtype)
+            target = teacher_probs_train[i].to(device, dtype=bag_pred.dtype)
             loss = loss_fn(bag_pred, target)
             loss.backward()
             optimizer.step()
@@ -44,11 +44,10 @@ def train_model(
                 x_batch = x_batch.to(device)
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
-                target = teacher_probs_val[j].to(bag_pred.dtype)
+                target = teacher_probs_val[j].to(device, dtype=bag_pred.dtype)
                 loss = loss_fn(bag_pred, target)
                 val_total_loss += loss.item()
             avg_val_loss = val_total_loss / len(val_loader)
-
         print(
             f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
         )
