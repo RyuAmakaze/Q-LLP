@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from config import DEFAULT_EPOCHS, DEFAULT_LR
+from config import DEFAULT_EPOCHS, DEFAULT_LR, DEVICE
 
 def train_model(
     model,
@@ -11,7 +11,11 @@ def train_model(
     teacher_probs_val,
     epochs=DEFAULT_EPOCHS,
     lr=DEFAULT_LR,
+    device=DEVICE,
 ):
+    model.to(device)
+    teacher_probs_train = teacher_probs_train.to(device)
+    teacher_probs_val = teacher_probs_val.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 
@@ -21,6 +25,7 @@ def train_model(
 
         for i, (x_batch, _) in enumerate(train_loader):
             optimizer.zero_grad()
+            x_batch = x_batch.to(device)
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
             target = teacher_probs_train[i].to(bag_pred.dtype)
@@ -36,6 +41,7 @@ def train_model(
         with torch.no_grad():
             val_total_loss = 0.0
             for j, (x_batch, _) in enumerate(val_loader):
+                x_batch = x_batch.to(device)
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
                 target = teacher_probs_val[j].to(bag_pred.dtype)

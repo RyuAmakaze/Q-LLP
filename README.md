@@ -16,6 +16,7 @@ Quantum Learning from Label Proportion
    python src/run.py
    ```
    学習が完了すると `trained_quantum_llp.pt` が作成されます。
+   CUDA が利用可能な環境では自動的に GPU を使用して計算します。
 
 ## テスト
 `pytest` を実行してユニットテストを確認できます。
