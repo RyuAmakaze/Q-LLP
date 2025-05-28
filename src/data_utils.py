@@ -91,10 +91,17 @@ def create_fixed_proportion_batches(dataset, teacher_probs_list, bag_size, num_c
     if hasattr(dataset, "indices"):
         indices = list(dataset.indices)
         base_dataset = dataset.dataset
+        # Handle nested Subset objects by unwrapping them and mapping indices
+        while hasattr(base_dataset, "indices"):
+            indices = [base_dataset.indices[i] for i in indices]
+            base_dataset = base_dataset.dataset
     else:
         indices = list(range(len(dataset)))
         base_dataset = dataset
-    targets = getattr(base_dataset, "targets", getattr(base_dataset, "labels"))
+
+    targets = getattr(base_dataset, "targets", None)
+    if targets is None:
+        targets = base_dataset.labels
 
     class_to_indices = {i: [] for i in range(num_classes)}
     for idx in indices:
