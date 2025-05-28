@@ -2,11 +2,12 @@ import sys
 import os
 import pytest
 
+torch = pytest.importorskip("torch")
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from data_utils import get_dataset_class, get_transform
+from data_utils import get_dataset_class, get_transform, compute_proportions
 from torchvision import datasets
-import torch
 import config as config
 
 
@@ -23,4 +24,11 @@ def test_transform_output_size():
     x = torch.randn(3, 32, 32)
     out = transform(x)
     assert out.shape[0] == config.ENCODING_DIM
+
+
+def test_compute_proportions():
+    labels = torch.tensor([0, 1, 1, 2, 3, 3])
+    props = compute_proportions(labels, 4)
+    assert torch.isclose(props.sum(), torch.tensor(1.0))
+    assert props.shape[0] == 4
 

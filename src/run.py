@@ -2,8 +2,13 @@ import torch
 from torch.utils.data import DataLoader, Subset, random_split
 
 from model import QuantumLLPModel
-from trainer import train_model
-from data_utils import get_dataset_class, get_transform
+from trainer import train_model, evaluate_model
+from data_utils import (
+    get_dataset_class,
+    get_transform,
+    filter_indices_by_class,
+    compute_proportions,
+)
 from config import (
     DATA_ROOT,
     SUBSET_SIZE,
@@ -30,14 +35,16 @@ DatasetClass = get_dataset_class(DATASET)
 train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
 test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
 
-subset_indices = list(range(SUBSET_SIZE))
-subset = Subset(train_full, subset_indices)
+train_indices = filter_indices_by_class(train_full, NUM_CLASSES)[:SUBSET_SIZE]
+subset = Subset(train_full, train_indices)
 val_size = int(len(subset) * VAL_SPLIT)
 train_size = len(subset) - val_size
 train_subset, val_subset = random_split(subset, [train_size, val_size])
 train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE, shuffle=SHUFFLE_DATA)
 val_loader = DataLoader(val_subset, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
+test_subset = Subset(test_dataset, test_indices)
+test_loader = DataLoader(test_subset, batch_size=BATCH_SIZE, shuffle=False)
 
 # 2. Teacher class distributions (alternating even/odd)
 teacher_probs_train = torch.tensor([
@@ -66,13 +73,18 @@ train_model(
 torch.save(model.state_dict(), "trained_quantum_llp.pt")
 print("Model saved to trained_quantum_llp.pt")
 
-# 5. Inference on a few test batches
+# 5. Inference on a few test batches and evaluation
 model.eval()
 with torch.no_grad():
-    for i, (x_batch, _) in enumerate(test_loader):
+    for i, (x_batch, y_batch) in enumerate(test_loader):
         x_batch = x_batch.to(DEVICE)
         pred_probs = model(x_batch)
         bag_pred = pred_probs.mean(dim=0)
+        bag_true = compute_proportions(y_batch, NUM_CLASSES)
         print(f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().numpy()}")
+        print(f"Test batch {i+1} true class proportions: {bag_true.numpy()}")
         if i >= 1:  # limit output for brevity
             break
+
+metrics = evaluate_model(model, test_loader, NUM_CLASSES, device=DEVICE)
+print("Evaluation on test set:", metrics)

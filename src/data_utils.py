@@ -45,3 +45,17 @@ def get_transform():
         tv_transforms.Lambda(lambda x: x.view(-1)),
         tv_transforms.Lambda(lambda x: x[:ENCODING_DIM])
     ])
+
+
+def filter_indices_by_class(dataset, num_classes):
+    """Return indices of samples whose label is < num_classes."""
+    targets = getattr(dataset, "targets", None)
+    if targets is None:
+        targets = dataset.labels
+    return [i for i, t in enumerate(targets) if int(t) < num_classes]
+
+
+def compute_proportions(labels, num_classes):
+    """Compute normalized label counts for a batch."""
+    counts = torch.bincount(labels, minlength=num_classes).float()
+    return counts / counts.sum()
