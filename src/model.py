@@ -30,6 +30,8 @@ class QuantumLLPModel(nn.Module):
         x_batch = x_batch.to(self.params.device)
         probs_batch = []
         for x in x_batch:
+            if x.shape[0] != self.n_qubits:
+                x = x[: self.n_qubits]
             angles = np.pi * x + self.params
             probs = self._state_probs(angles)[:NUM_CLASSES]
             probs_batch.append(probs)
