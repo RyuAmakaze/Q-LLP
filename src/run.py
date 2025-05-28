@@ -76,4 +76,3 @@ with torch.no_grad():
         print(f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().numpy()}")
         if i >= 1:  # limit output for brevity
             break
-
