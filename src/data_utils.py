@@ -131,3 +131,43 @@ def create_fixed_proportion_batches(dataset, teacher_probs_list, bag_size, num_c
         batches.append(batch)
 
     return FixedBatchSampler(batches)
+
+
+def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
+    """Create random bags and return a sampler and teacher label proportions."""
+    dataset_indices = list(range(len(dataset)))
+    if shuffle:
+        random.shuffle(dataset_indices)
+
+    # Walk to the root dataset to access labels
+    base_dataset = dataset
+    while hasattr(base_dataset, "indices"):
+        base_dataset = base_dataset.dataset
+
+    targets = getattr(base_dataset, "targets", None)
+    if targets is None:
+        targets = base_dataset.labels
+
+    batches = []
+    teacher_props = []
+    # ignore last incomplete batch
+    full_len = len(dataset_indices) - len(dataset_indices) % bag_size
+    for start in range(0, full_len, bag_size):
+        batch_indices = dataset_indices[start : start + bag_size]
+        batches.append(batch_indices)
+
+        labels = []
+        for idx in batch_indices:
+            root_idx = idx
+            ds = dataset
+            while hasattr(ds, "indices"):
+                root_idx = ds.indices[root_idx]
+                ds = ds.dataset
+            label = int(targets[root_idx])
+            if label < num_classes:
+                labels.append(label)
+        teacher_props.append(compute_proportions(torch.tensor(labels), num_classes))
+
+    sampler = FixedBatchSampler(batches)
+    teacher_tensor = torch.stack(teacher_props)
+    return sampler, teacher_tensor
