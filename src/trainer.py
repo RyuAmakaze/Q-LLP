@@ -65,7 +65,7 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
             counts = torch.bincount(y_batch, minlength=num_classes).float()
-            bag_true = counts / counts.sum()
+            bag_true = (counts / counts.sum()).to(device, dtype=bag_pred.dtype)
             mse_total += nn.functional.mse_loss(bag_pred, bag_true).item()
             ce_total += float((-bag_true * torch.log(bag_pred + 1e-9)).sum())
     avg_mse = mse_total / len(data_loader)
