@@ -51,3 +51,23 @@ def train_model(
         print(
             f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
         )
+
+
+def evaluate_model(model, data_loader, num_classes, device=DEVICE):
+    """Return average MSE and cross entropy between predicted and true proportions."""
+    model.to(device)
+    model.eval()
+    mse_total = 0.0
+    ce_total = 0.0
+    with torch.no_grad():
+        for x_batch, y_batch in data_loader:
+            x_batch = x_batch.to(device)
+            pred_probs = model(x_batch)
+            bag_pred = pred_probs.mean(dim=0)
+            counts = torch.bincount(y_batch, minlength=num_classes).float()
+            bag_true = counts / counts.sum()
+            mse_total += nn.functional.mse_loss(bag_pred, bag_true).item()
+            ce_total += float((-bag_true * torch.log(bag_pred + 1e-9)).sum())
+    avg_mse = mse_total / len(data_loader)
+    avg_ce = ce_total / len(data_loader)
+    return {"mse": avg_mse, "cross_entropy": avg_ce}

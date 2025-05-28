@@ -15,7 +15,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model settings
 NUM_QUBITS = 2
-NUM_CLASSES = 2
+NUM_CLASSES = 4
 MEASURE_SHOTS = 100
 
 # Training settings
@@ -25,5 +25,5 @@ RUN_EPOCHS = 5
 RUN_LR = 0.1
 
 # Teacher probabilities for bags
-TEACHER_PROBS_EVEN = [0.2, 0.8]
-TEACHER_PROBS_ODD = [0.8, 0.2]
+TEACHER_PROBS_EVEN = [0.1, 0.2, 0.3, 0.4]
+TEACHER_PROBS_ODD = [0.4, 0.3, 0.2, 0.1]
