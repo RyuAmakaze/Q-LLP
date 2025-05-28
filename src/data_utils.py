@@ -39,11 +39,19 @@ def get_dataset_class(name: str):
     return mapping[name]
 
 
+def _maybe_to_tensor(x):
+    """Convert input to a tensor if it isn't already one."""
+    if isinstance(x, torch.Tensor):
+        return x
+    return tv_transforms.ToTensor()(x)
+
+
 def get_transform():
+    """Return a transform that flattens and truncates images."""
     return tv_transforms.Compose([
-        tv_transforms.ToTensor(),
+        tv_transforms.Lambda(_maybe_to_tensor),
         tv_transforms.Lambda(lambda x: x.view(-1)),
-        tv_transforms.Lambda(lambda x: x[:ENCODING_DIM])
+        tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
     ])
 
 
