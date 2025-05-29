@@ -97,7 +97,17 @@ def create_fixed_proportion_batches(dataset, teacher_probs_list, bag_size, num_c
 
     targets = getattr(base_dataset, "targets", None)
     if targets is None:
-        targets = base_dataset.labels
+        targets = getattr(base_dataset, "labels", None)
+    if targets is None and isinstance(base_dataset, torch.utils.data.TensorDataset):
+        if len(base_dataset.tensors) < 2:
+            raise ValueError(
+                "TensorDataset must contain at least two tensors to provide labels"
+            )
+        targets = base_dataset.tensors[1]
+    if targets is None:
+        raise ValueError(
+            "Could not locate labels. Provide 'targets', 'labels', or use a TensorDataset with labels"
+        )
 
     class_to_indices = {i: [] for i in range(num_classes)}
     for idx in dataset_indices:
@@ -146,7 +156,17 @@ def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
 
     targets = getattr(base_dataset, "targets", None)
     if targets is None:
-        targets = base_dataset.labels
+        targets = getattr(base_dataset, "labels", None)
+    if targets is None and isinstance(base_dataset, torch.utils.data.TensorDataset):
+        if len(base_dataset.tensors) < 2:
+            raise ValueError(
+                "TensorDataset must contain at least two tensors to provide labels"
+            )
+        targets = base_dataset.tensors[1]
+    if targets is None:
+        raise ValueError(
+            "Could not locate labels. Provide 'targets', 'labels', or use a TensorDataset with labels"
+        )
 
     batches = []
     teacher_props = []
