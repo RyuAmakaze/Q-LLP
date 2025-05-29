@@ -57,21 +57,29 @@ def train_model(
 
 
 def evaluate_model(model, data_loader, num_classes, device=DEVICE):
-    """Return average MSE and cross entropy between predicted and true proportions."""
+    """Return average MSE, cross entropy and accuracy."""
     model.to(device)
     model.eval()
     mse_total = 0.0
     ce_total = 0.0
+    total_correct = 0
+    total_samples = 0
     with torch.no_grad():
         for x_batch, y_batch in data_loader:
             # Compute predictions for one bag at a time
             x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
-            counts = torch.bincount(y_batch, minlength=num_classes).float()
+            counts = torch.bincount(y_batch.cpu(), minlength=num_classes).float()
             bag_true = (counts / counts.sum()).to(device, dtype=bag_pred.dtype)
             mse_total += nn.functional.mse_loss(bag_pred, bag_true).item()
             ce_total += float((-bag_true * torch.log(bag_pred + 1e-9)).sum())
+
+            pred_classes = pred_probs.argmax(dim=1)
+            total_correct += (pred_classes == y_batch).sum().item()
+            total_samples += y_batch.size(0)
     avg_mse = mse_total / len(data_loader)
     avg_ce = ce_total / len(data_loader)
-    return {"mse": avg_mse, "cross_entropy": avg_ce}
+    accuracy = total_correct / total_samples if total_samples > 0 else 0.0
+    return {"mse": avg_mse, "cross_entropy": avg_ce, "accuracy": accuracy}
