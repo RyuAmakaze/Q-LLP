@@ -8,7 +8,6 @@ from data_utils import (
     get_transform,
     filter_indices_by_class,
     compute_proportions,
-    create_random_bags,
 )
 from config import (
     DATA_ROOT,
@@ -48,33 +47,25 @@ print(f"Bag size: {BAG_SIZE}")
 print(f"Number of training bags: {num_train_bags}")
 print(f"Number of validation bags: {num_val_bags}")
 
-train_sampler, teacher_probs_train = create_random_bags(
-    train_subset, BAG_SIZE, NUM_CLASSES, shuffle=SHUFFLE_DATA
-)
-val_sampler, teacher_probs_val = create_random_bags(
-    val_subset, BAG_SIZE, NUM_CLASSES, shuffle=SHUFFLE_DATA
-)
-
-train_loader = DataLoader(train_subset, batch_sampler=train_sampler)
-val_loader = DataLoader(val_subset, batch_sampler=val_sampler)
 test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
 test_subset = Subset(test_dataset, test_indices)
 test_loader = DataLoader(test_subset, batch_size=BAG_SIZE, shuffle=False)
 print(f"Test subset size: {len(test_subset)}")
 
-# 2. Teacher class distributions computed from the constructed bags
+# 2. Teacher class distributions are computed inside the trainer
 
 # 3. Train model
 model = QuantumLLPModel(n_qubits=NUM_QUBITS).to(DEVICE)
 train_model(
     model,
-    train_loader,
-    val_loader,
-    teacher_probs_train,
-    teacher_probs_val,
+    train_subset,
+    val_subset,
+    bag_size=BAG_SIZE,
+    num_classes=NUM_CLASSES,
     epochs=RUN_EPOCHS,
     lr=RUN_LR,
     device=DEVICE,
+    shuffle=SHUFFLE_DATA,
 )
 
 # 4. Save model

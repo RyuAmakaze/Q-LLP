@@ -1,25 +1,41 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from config import DEFAULT_EPOCHS, DEFAULT_LR, DEVICE
+from torch.utils.data import DataLoader
+
+from config import DEFAULT_EPOCHS, DEFAULT_LR, DEVICE, BAG_SIZE, NUM_CLASSES, SHUFFLE_DATA
+from data_utils import create_random_bags
 
 def train_model(
     model,
-    train_loader,
-    val_loader,
-    teacher_probs_train,
-    teacher_probs_val,
+    train_dataset,
+    val_dataset,
+    bag_size=BAG_SIZE,
+    num_classes=NUM_CLASSES,
     epochs=DEFAULT_EPOCHS,
     lr=DEFAULT_LR,
     device=DEVICE,
+    shuffle=SHUFFLE_DATA,
 ):
+    """Train model while recreating bags every epoch."""
     model.to(device)
-    teacher_probs_train = teacher_probs_train.to(device)
-    teacher_probs_val = teacher_probs_val.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 
     for epoch in range(epochs):
+        train_sampler, teacher_probs_train = create_random_bags(
+            train_dataset, bag_size, num_classes, shuffle=shuffle
+        )
+        val_sampler, teacher_probs_val = create_random_bags(
+            val_dataset, bag_size, num_classes, shuffle=shuffle
+        )
+
+        train_loader = DataLoader(train_dataset, batch_sampler=train_sampler)
+        val_loader = DataLoader(val_dataset, batch_sampler=val_sampler)
+
+        teacher_probs_train = teacher_probs_train.to(device)
+        teacher_probs_val = teacher_probs_val.to(device)
+
         model.train()
         total_loss = 0.0
 
