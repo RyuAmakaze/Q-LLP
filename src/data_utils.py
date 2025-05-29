@@ -49,8 +49,8 @@ def _maybe_to_tensor(x):
         return x
     return tv_transforms.ToTensor()(x)
 
-
-def get_transform(use_dino: bool | None = None):
+from typing import Optional
+def get_transform(use_dino: Optional[bool] = None):
     """Return a transform that converts images to feature vectors.
 
     Parameters
