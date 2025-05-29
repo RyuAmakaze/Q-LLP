@@ -33,7 +33,3 @@ Quantum Learning from Label Proportion
 ```bash
 pytest
 ```
-
-
-このモードは勾配計算ができないため学習用途ではなく、回路の挙動を確
-認したい場合に使用してください。
