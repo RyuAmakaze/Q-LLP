@@ -33,3 +33,22 @@ Quantum Learning from Label Proportion
 ```bash
 pytest
 ```
+
+## 量子回路のシミュレーション
+
+`QuantumLLPModel` はデフォルトでは解析的に測定確率を計算しますが、
+`use_circuit=True` を指定すると、実際に `qiskit` の量子回路を構築して
+シミュレーションすることもできます。
+
+```python
+from model import QuantumLLPModel
+import torch
+
+model = QuantumLLPModel(n_qubits=4, use_circuit=True)
+features = torch.rand(1, 4)
+probs = model(features)
+print(probs)
+```
+
+このモードは勾配計算ができないため学習用途ではなく、回路の挙動を確
+認したい場合に使用してください。

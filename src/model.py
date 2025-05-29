@@ -13,9 +13,25 @@ def kronecker_product(probs_list):
     return result
 
 class QuantumLLPModel(nn.Module):
-    def __init__(self, n_qubits):
+    def __init__(self, n_qubits, use_circuit=False):
+        """Quantum LLP model.
+
+        Parameters
+        ----------
+        n_qubits : int
+            Number of qubits / features encoded.
+        use_circuit : bool, optional
+            If ``True`` measurement probabilities are obtained by constructing
+            and simulating a :class:`~qiskit.circuit.QuantumCircuit` using
+            :func:`data_to_circuit` and :func:`circuit_state_probs`. This path is
+            **not differentiable** and mainly provided for inspection or
+            debugging.  The default analytic calculation remains the default
+            behaviour when ``False``.
+        """
+
         super().__init__()
         self.n_qubits = n_qubits
+        self.use_circuit = use_circuit
         self.params = nn.Parameter(torch.randn(n_qubits, dtype=torch.float32))
 
     def _state_probs(self, angles):
@@ -37,7 +53,15 @@ class QuantumLLPModel(nn.Module):
             if x.shape[0] != self.n_qubits:
                 x = x[: self.n_qubits]
             angles = np.pi * x + self.params
-            probs = self._state_probs(angles)[:NUM_CLASSES]
+            if self.use_circuit:
+                if QuantumCircuit is None:
+                    raise ImportError("qiskit is required for circuit simulation")
+                circuit = data_to_circuit(np.pi * x.cpu(), self.params.detach().cpu())
+                probs = circuit_state_probs(circuit)
+                probs = probs[:NUM_CLASSES]
+                probs = probs.to(self.params.device)
+            else:
+                probs = self._state_probs(angles)[:NUM_CLASSES]
             probs = probs.to(self.params.device)
             probs = probs / probs.sum()
             probs_batch.append(probs)
