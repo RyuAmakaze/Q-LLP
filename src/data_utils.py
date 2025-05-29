@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - torchvision may not be installed
     tv_datasets = types.SimpleNamespace(MNIST=object, CIFAR10=object, CIFAR100=object)
     tv_transforms = types.SimpleNamespace(Compose=DummyCompose, Lambda=DummyLambda, ToTensor=DummyToTensor)
 
-from config import ENCODING_DIM
+from config import ENCODING_DIM, USE_DINO
 
 
 def get_dataset_class(name: str):
@@ -50,7 +50,7 @@ def _maybe_to_tensor(x):
     return tv_transforms.ToTensor()(x)
 
 
-def get_transform(use_dino: bool = False):
+def get_transform(use_dino: bool | None = None):
     """Return a transform that converts images to feature vectors.
 
     Parameters
@@ -60,8 +60,12 @@ def get_transform(use_dino: bool = False):
         This requires both ``torch`` and ``torchvision`` with the
         corresponding weights available.  When ``False`` the original
         behaviour of flattening the tensor and truncating to
-        ``ENCODING_DIM`` is used.  The default is ``False``.
+        ``ENCODING_DIM`` is used.  When ``None`` (default) the value of
+        ``config.USE_DINO`` is used.
     """
+
+    if use_dino is None:
+        use_dino = USE_DINO
 
     if not use_dino:
         return tv_transforms.Compose([
