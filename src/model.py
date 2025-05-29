@@ -30,7 +30,7 @@ class QuantumLLPModel(nn.Module):
             p1 = torch.sin(angles / 2) ** 2
             probs_list = [torch.stack([p0[i], p1[i]]) for i in range(self.n_qubits)]
             probs = kronecker_product(probs_list)
-        return probs
+        return probs.to(angles.device)
 
     def forward(self, x_batch):
         x_batch = x_batch.to(self.params.device)
@@ -40,6 +40,7 @@ class QuantumLLPModel(nn.Module):
                 x = x[: self.n_qubits]
             angles = np.pi * x + self.params
             probs = self._state_probs(angles)[:NUM_CLASSES]
+            probs = probs.to(self.params.device)
             probs = probs / probs.sum()
             probs_batch.append(probs)
         return torch.stack(probs_batch)
