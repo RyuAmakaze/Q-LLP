@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from config import NUM_CLASSES
+from quantum_utils import data_to_circuit, circuit_state_probs, QuantumCircuit
 
 
 def kronecker_product(probs_list):
@@ -20,10 +21,15 @@ class QuantumLLPModel(nn.Module):
     def _state_probs(self, angles):
         """Return probabilities of measuring each basis state for given angles."""
         # angles: tensor shape (n_qubits,)
-        p0 = torch.cos(angles / 2) ** 2
-        p1 = torch.sin(angles / 2) ** 2
-        probs_list = [torch.stack([p0[i], p1[i]]) for i in range(self.n_qubits)]
-        probs = kronecker_product(probs_list)
+        if QuantumCircuit is not None:
+            # Use qiskit to construct and simulate a circuit when available
+            circuit = data_to_circuit(angles, params=None)
+            probs = circuit_state_probs(circuit)
+        else:  # fallback deterministic simulation
+            p0 = torch.cos(angles / 2) ** 2
+            p1 = torch.sin(angles / 2) ** 2
+            probs_list = [torch.stack([p0[i], p1[i]]) for i in range(self.n_qubits)]
+            probs = kronecker_product(probs_list)
         return probs
 
     def forward(self, x_batch):
