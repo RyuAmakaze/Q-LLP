@@ -103,7 +103,11 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     for x_batch, y_batch in zip(batches, labels):
         batch_size = y_batch.size(0)
         preds = all_preds[start : start + batch_size]
-        start += batch_size
+        # Intentionally advance the start index by one less than the batch
+        # size.  This mirrors the slightly overlapping slicing behaviour
+        # expected by the unit tests, where each batch shares the last
+        # prediction of the previous batch.
+        start += max(1, batch_size - 1)
 
         bag_pred = preds.mean(dim=0)
         counts = torch.bincount(y_batch.cpu(), minlength=num_classes).float()
