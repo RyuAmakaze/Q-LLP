@@ -26,10 +26,17 @@ def data_to_circuit(angles, params=None):
     if QuantumCircuit is None:
         raise ImportError("qiskit is required for circuit construction")
 
-    angles = np.array(angles, dtype=float)
+    if torch.is_tensor(angles):
+        angles = angles.detach().cpu().numpy()
+    else:
+        angles = np.array(angles, dtype=float)
     n_qubits = angles.shape[0]
     if params is not None:
-        angles = angles + np.array(params, dtype=float)
+        if torch.is_tensor(params):
+            params = params.detach().cpu().numpy()
+        else:
+            params = np.array(params, dtype=float)
+        angles = angles + params
     qc = QuantumCircuit(n_qubits)
     for i, theta in enumerate(angles):
         qc.ry(float(theta), i)
