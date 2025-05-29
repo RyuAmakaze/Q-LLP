@@ -16,6 +16,7 @@ def train_model(
     lr=DEFAULT_LR,
     device=DEVICE,
     shuffle=SHUFFLE_DATA,
+    log_interval: int = 10,
 ):
     """Train model while recreating bags every epoch."""
     model.to(device)
@@ -52,6 +53,12 @@ def train_model(
             optimizer.step()
 
             total_loss += loss.item()
+
+            if log_interval > 0 and ((i + 1) % log_interval == 0 or i == 0 or (i + 1) == len(train_loader)):
+                print(
+                    f"Epoch {epoch+1}/{epochs} - Iteration {i+1}/{len(train_loader)}"
+                    f", Batch Loss: {loss.item():.4f}"
+                )
 
         avg_loss = total_loss / len(train_loader)
 
