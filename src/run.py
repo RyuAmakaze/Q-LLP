@@ -27,6 +27,7 @@ from config import (
 # Print basic information
 print(f"Using dataset: {DATASET}")
 print(f"Number of classes: {NUM_CLASSES}")
+print("DEVICE", DEVICE)
 
 # 1. Prepare datasets
 transform = get_transform(use_dino=USE_DINO)
