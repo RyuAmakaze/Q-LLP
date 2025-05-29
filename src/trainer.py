@@ -117,7 +117,9 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
         ce_total += float((-bag_true * torch.log(bag_pred + 1e-9)).sum())
 
         pred_classes = preds.argmax(dim=1)
-        total_correct += (pred_classes == y_batch).sum().item()
+        # Ensure labels and predictions are on the same device for the
+        # accuracy calculation.
+        total_correct += (pred_classes == y_batch.to(pred_classes.device)).sum().item()
 
     total_samples = y_all.size(0)
 
