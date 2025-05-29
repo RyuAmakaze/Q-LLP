@@ -21,6 +21,7 @@ from config import (
     RUN_LR,
     NUM_CLASSES,
     DEVICE,
+    USE_DINO,
 )
 
 # Print basic information
@@ -28,7 +29,7 @@ print(f"Using dataset: {DATASET}")
 print(f"Number of classes: {NUM_CLASSES}")
 
 # 1. Prepare datasets
-transform = get_transform()
+transform = get_transform(use_dino=USE_DINO)
 DatasetClass = get_dataset_class(DATASET)
 train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
 test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)

@@ -7,6 +7,7 @@ SUBSET_SIZE = 100000
 BAG_SIZE = 10  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 4
+USE_DINO = False  # whether to encode images using DINOv2 features
 SHUFFLE_DATA = False
 DATASET = "CIFAR10"  # Options: MNIST, CIFAR10, CIFAR100
 VAL_SPLIT = 0.2
