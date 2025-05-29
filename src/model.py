@@ -34,5 +34,6 @@ class QuantumLLPModel(nn.Module):
                 x = x[: self.n_qubits]
             angles = np.pi * x + self.params
             probs = self._state_probs(angles)[:NUM_CLASSES]
+            probs = probs / probs.sum()
             probs_batch.append(probs)
         return torch.stack(probs_batch)
