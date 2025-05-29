@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - torchvision may not be installed
     tv_datasets = types.SimpleNamespace(MNIST=object, CIFAR10=object, CIFAR100=object)
     tv_transforms = types.SimpleNamespace(Compose=DummyCompose, Lambda=DummyLambda, ToTensor=DummyToTensor)
 
-from config import ENCODING_DIM, USE_DINO
+from config import ENCODING_DIM, USE_DINO, DEVICE
 
 
 def get_dataset_class(name: str):
@@ -49,8 +49,8 @@ def _maybe_to_tensor(x):
         return x
     return tv_transforms.ToTensor()(x)
 
-
-def get_transform(use_dino: bool | None = None):
+from typing import Optional
+def get_transform(use_dino: Optional[bool] = None):
     """Return a transform that converts images to feature vectors.
 
     Parameters
@@ -87,6 +87,7 @@ def get_transform(use_dino: bool | None = None):
         "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
     )
     dino_model.eval()
+    dino_model.to(DEVICE)
 
     dino_preprocess = _tt.Compose(
         [
@@ -101,8 +102,9 @@ def get_transform(use_dino: bool | None = None):
         img = dino_preprocess(img)
         if img.dim() == 3:
             img = img.unsqueeze(0)
+        img = img.to(DEVICE)
         with torch.no_grad():
-            feats = dino_model(img)[0]
+            feats = dino_model(img)[0].cpu()
         return feats[:ENCODING_DIM]
 
     return _dino_encode
