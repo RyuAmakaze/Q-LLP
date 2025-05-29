@@ -50,13 +50,58 @@ def _maybe_to_tensor(x):
     return tv_transforms.ToTensor()(x)
 
 
-def get_transform():
-    """Return a transform that flattens and truncates images."""
-    return tv_transforms.Compose([
-        tv_transforms.Lambda(_maybe_to_tensor),
-        tv_transforms.Lambda(lambda x: x.view(-1)),
-        tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
-    ])
+def get_transform(use_dino: bool = False):
+    """Return a transform that converts images to feature vectors.
+
+    Parameters
+    ----------
+    use_dino : bool, optional
+        If ``True`` images are encoded using a pretrained DINOv2 model.
+        This requires both ``torch`` and ``torchvision`` with the
+        corresponding weights available.  When ``False`` the original
+        behaviour of flattening the tensor and truncating to
+        ``ENCODING_DIM`` is used.  The default is ``False``.
+    """
+
+    if not use_dino:
+        return tv_transforms.Compose([
+            tv_transforms.Lambda(_maybe_to_tensor),
+            tv_transforms.Lambda(lambda x: x.view(-1)),
+            tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
+        ])
+
+    # Lazy import to avoid heavy dependencies when DINO is not used
+    try:
+        import torch.hub
+        from torchvision import transforms as _tt
+    except Exception as exc:  # pragma: no cover - torch may be missing
+        raise ImportError("DINO transform requires torch and torchvision") from exc
+
+    # Load DINOv2 model via torch.hub.  We do not force download here;
+    # torch.hub will handle caching of the weights if available.
+    dino_model = torch.hub.load(
+        "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
+    )
+    dino_model.eval()
+
+    dino_preprocess = _tt.Compose(
+        [
+            _tt.Lambda(_maybe_to_tensor),
+            _tt.Resize(224),
+            _tt.CenterCrop(224),
+            _tt.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ]
+    )
+
+    def _dino_encode(img):
+        img = dino_preprocess(img)
+        if img.dim() == 3:
+            img = img.unsqueeze(0)
+        with torch.no_grad():
+            feats = dino_model(img)[0]
+        return feats[:ENCODING_DIM]
+
+    return _dino_encode
 
 
 def filter_indices_by_class(dataset, num_classes):
