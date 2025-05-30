@@ -101,6 +101,12 @@ def train_model(
             f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
         )
 
+        # Explicitly shut down worker processes to avoid leaked semaphores
+        if hasattr(train_loader, "_shutdown_workers"):
+            train_loader._shutdown_workers()
+        if hasattr(val_loader, "_shutdown_workers"):
+            val_loader._shutdown_workers()
+
 
 def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     """Return average MSE, cross entropy and accuracy."""
@@ -156,4 +162,9 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     avg_mse = mse_total / len(batches)
     avg_ce = ce_total / len(batches)
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
+
+    # Explicitly shut down worker processes to avoid leaked semaphores
+    if hasattr(data_loader, "_shutdown_workers"):
+        data_loader._shutdown_workers()
+
     return {"mse": avg_mse, "cross_entropy": avg_ce, "accuracy": accuracy}
