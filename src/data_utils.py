@@ -74,6 +74,17 @@ class DinoEncoder:
         self.model = None
         self.preprocess = None
 
+    def __getstate__(self):
+        # Drop loaded model when pickling to avoid importing dinov2 in workers
+        return {
+            "model": None,
+            "preprocess": None,
+        }
+
+    def __setstate__(self, state):
+        self.model = None
+        self.preprocess = None
+
     def _load(self):
         import os
         import torch.hub
@@ -136,8 +147,12 @@ def get_transform(use_dino: Optional[bool] = None):
     if use_dino:
         try:
             enc = DinoEncoder()
-            # Trigger loading to catch errors early
+            # Defer loading to workers to avoid pickling the model
+            # but still check that loading succeeds if possible
             enc._load()
+            # Immediately drop the loaded model so the object can be pickled
+            enc.model = None
+            enc.preprocess = None
             return enc
         except Exception:  # pragma: no cover - network/dependency issues
             print("Warning: failed to load DINOv2 model, falling back to basic transform")
