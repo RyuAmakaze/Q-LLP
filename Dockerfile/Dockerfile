@@ -1,4 +1,11 @@
-FROM python:3.11-slim
+# Use a PyTorch image with CUDA support so GPU acceleration is available.
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+
 WORKDIR /app
-RUN pip install --no-cache-dir torch torchvision qiskit pytest qiskit_aer
+
+# PyTorch is preinstalled in the base image. Install the remaining
+# dependencies required for this project.
+RUN pip install --no-cache-dir qiskit qiskit_aer pytest
+
+# Default command runs the training script.
 CMD ["python", "src/run.py"]
