@@ -23,9 +23,9 @@ Quantum Learning from Label Proportion
    ```bash
    docker build -t q-llp -f Dockerfile/Dockerfile .
    ```
-2. コンテナを起動して学習を実行します。
+2. 作業ディレクトリをコンテナにマウントして学習を実行します。
    ```bash
-   docker run --rm q-llp
+   docker run --rm -v $(pwd):/app -w /app q-llp python src/run.py
    ```
 
 ## テスト
