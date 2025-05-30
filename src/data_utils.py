@@ -4,6 +4,7 @@ import random
 import math
 from typing import Sequence, List
 from torch.utils.data import Sampler
+from tqdm import tqdm
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -57,6 +58,57 @@ def _maybe_to_tensor(x):
     return tv_transforms.ToTensor()(x)
 
 from typing import Optional
+
+
+class DinoEncoder:
+    """Callable object that lazily loads a DINOv2 model for feature extraction."""
+
+    def __init__(self):
+        self.model = None
+        self.preprocess = None
+
+    def _load(self):
+        import os
+        import torch.hub
+        import fcntl
+        from torchvision import transforms as _tt
+
+        # Avoid race conditions when multiple workers load the model
+        cache_dir = torch.hub.get_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+        lock_path = os.path.join(cache_dir, "dinov2.lock")
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                self.model = torch.hub.load(
+                    "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
+                )
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+        self.model.eval()
+        self.model.to(DEVICE)
+
+        self.preprocess = _tt.Compose(
+            [
+                _tt.Lambda(_maybe_to_tensor),
+                _tt.Resize(224),
+                _tt.CenterCrop(224),
+                _tt.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]
+        )
+
+    def __call__(self, img):
+        if self.model is None:
+            self._load()
+
+        img = self.preprocess(img)
+        if img.dim() == 3:
+            img = img.unsqueeze(0)
+        img = img.to(DEVICE)
+        with torch.no_grad():
+            feats = self.model(img)[0].cpu()
+        return feats[:ENCODING_DIM]
 def get_transform(use_dino: Optional[bool] = None):
     """Return a transform that converts images to feature vectors.
 
@@ -81,40 +133,7 @@ def get_transform(use_dino: Optional[bool] = None):
             tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
         ])
 
-    # Lazy import to avoid heavy dependencies when DINO is not used
-    try:
-        import torch.hub
-        from torchvision import transforms as _tt
-    except Exception as exc:  # pragma: no cover - torch may be missing
-        raise ImportError("DINO transform requires torch and torchvision") from exc
-
-    # Load DINOv2 model via torch.hub.  We do not force download here;
-    # torch.hub will handle caching of the weights if available.
-    dino_model = torch.hub.load(
-        "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
-    )
-    dino_model.eval()
-    dino_model.to(DEVICE)
-
-    dino_preprocess = _tt.Compose(
-        [
-            _tt.Lambda(_maybe_to_tensor),
-            _tt.Resize(224),
-            _tt.CenterCrop(224),
-            _tt.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ]
-    )
-
-    def _dino_encode(img):
-        img = dino_preprocess(img)
-        if img.dim() == 3:
-            img = img.unsqueeze(0)
-        img = img.to(DEVICE)
-        with torch.no_grad():
-            feats = dino_model(img)[0].cpu()
-        return feats[:ENCODING_DIM]
-
-    return _dino_encode
+    return DinoEncoder()
 
 
 def filter_indices_by_class(dataset, num_classes):
@@ -262,6 +281,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
         num_workers=NUM_WORKERS,
         pin_memory=PIN_MEMORY,
         persistent_workers=NUM_WORKERS > 0,
+        multiprocessing_context="spawn",
     )
 
     all_x = []
@@ -270,7 +290,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
     step = max(1, total // 10)
 
     print(desc)
-    for i, (x, y) in enumerate(loader, 1):
+    for i, (x, y) in tqdm(enumerate(loader, 1), desc="preload_dataset"):
         all_x.append(x.cpu())
         all_y.append(y.cpu())
         if i == 1 or i == total or i % step == 0:
