@@ -85,6 +85,7 @@ test_loader = DataLoader(
     num_workers=NUM_WORKERS,
     pin_memory=PIN_MEMORY,
     persistent_workers=NUM_WORKERS > 0,
+    multiprocessing_context="spawn",
 )
 print(f"Test subset size: {len(test_subset)}")
 
