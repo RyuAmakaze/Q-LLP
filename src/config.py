@@ -26,6 +26,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model settings
 NUM_QUBITS = 4
+NUM_LAYERS = 1  # number of parameterized layers in the quantum circuit
 NUM_CLASSES = 10
 MEASURE_SHOTS = 100
 

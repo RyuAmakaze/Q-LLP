@@ -25,6 +25,7 @@ def main() -> None:
         DATASET,
         VAL_SPLIT,
         NUM_QUBITS,
+        NUM_LAYERS,
         RUN_EPOCHS,
         RUN_LR,
         NUM_CLASSES,
@@ -95,7 +96,11 @@ def main() -> None:
 # 2. Teacher class distributions are computed inside the trainer
 
 # 3. Train model
-    model = QuantumLLPModel(n_qubits=NUM_QUBITS).to(DEVICE)
+    model = QuantumLLPModel(
+        n_qubits=NUM_QUBITS,
+        num_layers=NUM_LAYERS,
+        entangling=NUM_LAYERS > 1,
+    ).to(DEVICE)
     train_model(
         model,
         train_subset,

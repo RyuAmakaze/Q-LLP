@@ -13,26 +13,34 @@ def kronecker_product(probs_list):
     return result
 
 class QuantumLLPModel(nn.Module):
-    def __init__(self, n_qubits, use_circuit=False):
-        """Quantum LLP model.
+    def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False):
+        """Quantum LLP model supporting optional deep entangling circuits.
 
         Parameters
         ----------
         n_qubits : int
             Number of qubits / features encoded.
+        num_layers : int, optional
+            Number of parameterized layers applied after the data encoding.
         use_circuit : bool, optional
             If ``True`` measurement probabilities are obtained by constructing
             and simulating a :class:`~qiskit.circuit.QuantumCircuit` using
             :func:`data_to_circuit` and :func:`circuit_state_probs`. This path is
             **not differentiable** and mainly provided for inspection or
             debugging.  The default analytic calculation remains the default
-            behaviour when ``False``.
+            behaviour when ``False``.  When ``num_layers`` > 1 or ``entangling``
+            is ``True`` this option is implicitly enabled.
+        entangling : bool, optional
+            If ``True`` a chain of ``CX`` gates is inserted after each
+            parameterized layer.
         """
 
         super().__init__()
         self.n_qubits = n_qubits
-        self.use_circuit = use_circuit
-        self.params = nn.Parameter(torch.randn(n_qubits, dtype=torch.float32))
+        self.num_layers = num_layers
+        self.entangling = entangling
+        self.use_circuit = use_circuit or num_layers > 1 or entangling
+        self.params = nn.Parameter(torch.randn(num_layers, n_qubits, dtype=torch.float32))
 
     def _state_probs(self, angles):
         """Return probabilities of measuring each basis state for given angles."""
@@ -52,15 +60,17 @@ class QuantumLLPModel(nn.Module):
         for x in x_batch:
             if x.shape[0] != self.n_qubits:
                 x = x[: self.n_qubits]
-            angles = np.pi * x + self.params
             if self.use_circuit:
                 if QuantumCircuit is None:
                     raise ImportError("qiskit is required for circuit simulation")
-                circuit = data_to_circuit(np.pi * x.cpu(), self.params.detach().cpu())
+                circuit = data_to_circuit(
+                    np.pi * x.cpu(), self.params.detach().cpu(), entangling=self.entangling
+                )
                 probs = circuit_state_probs(circuit)
                 probs = probs[:NUM_CLASSES]
                 probs = probs.to(self.params.device)
             else:
+                angles = np.pi * x + self.params[0]
                 probs = self._state_probs(angles)[:NUM_CLASSES]
             probs = probs.to(self.params.device)
             probs = probs / probs.sum()
