@@ -67,8 +67,12 @@ class DinoEncoder:
         self.preprocess = None
 
     def _load(self):
+        import os
         import torch.hub
         from torchvision import transforms as _tt
+
+        # Avoid race conditions when multiple workers load the model
+        os.makedirs(torch.hub.get_dir(), exist_ok=True)
 
         self.model = torch.hub.load(
             "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
