@@ -4,6 +4,7 @@ import random
 import math
 from typing import Sequence, List
 from torch.utils.data import Sampler
+from tqdm import tqdm
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -69,14 +70,22 @@ class DinoEncoder:
     def _load(self):
         import os
         import torch.hub
+        import fcntl
         from torchvision import transforms as _tt
 
         # Avoid race conditions when multiple workers load the model
-        os.makedirs(torch.hub.get_dir(), exist_ok=True)
+        cache_dir = torch.hub.get_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+        lock_path = os.path.join(cache_dir, "dinov2.lock")
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                self.model = torch.hub.load(
+                    "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
+                )
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
 
-        self.model = torch.hub.load(
-            "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
-        )
         self.model.eval()
         self.model.to(DEVICE)
 
@@ -280,7 +289,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
     step = max(1, total // 10)
 
     print(desc)
-    for i, (x, y) in enumerate(loader, 1):
+    for i, (x, y) in tqdm(enumerate(loader, 1)，desc="preload_dataset"):
         all_x.append(x.cpu())
         all_y.append(y.cpu())
         if i == 1 or i == total or i % step == 0:
