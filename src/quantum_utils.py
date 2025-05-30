@@ -77,7 +77,8 @@ def circuit_state_probs(circuit):
     probs = state.probabilities()
     return torch.tensor(probs, dtype=torch.float32)
 
-def parameter_shift_gradients(angles, params, shift=np.pi/2):
+
+def parameter_shift_gradients(angles, params, shift=np.pi / 2):
     """Return probabilities and gradients via the parameter-shift rule.
 
     Parameters
@@ -117,3 +118,66 @@ def parameter_shift_gradients(angles, params, shift=np.pi/2):
         grads.append(grad)
     grads = torch.stack(grads, dim=0)
     return base_probs, grads
+
+
+def save_circuit_png(circuit, filename):
+    """Save ``circuit`` as a PNG image.
+
+    Parameters
+    ----------
+    circuit : qiskit.QuantumCircuit
+        The circuit to draw.
+    filename : str or path-like
+        Destination path of the PNG file.
+
+    Notes
+    -----
+    ``qiskit`` and ``matplotlib`` must be installed for this function to work.
+    """
+    if QuantumCircuit is None:
+        raise ImportError("qiskit is required for circuit drawing")
+
+    try:
+        fig = circuit.draw(output="mpl")
+    except Exception as exc:  # pragma: no cover - matplotlib may be missing
+        raise ImportError("matplotlib is required for drawing circuits") from exc
+
+    fig.savefig(filename)
+
+
+def save_model_circuit(model, filename, angles=None):
+    """Save a diagram of ``model``'s circuit to ``filename``.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Trained model providing ``n_qubits``, ``params`` and optional
+        ``entangling`` attributes.
+    filename : str or path-like
+        Destination path of the PNG file.
+    angles : Sequence[float] or torch.Tensor, optional
+        Data-encoding angles for the circuit. Defaults to zeros.
+    """
+    if QuantumCircuit is None:
+        raise ImportError("qiskit is required for circuit drawing")
+
+    n_qubits = getattr(model, "n_qubits", None)
+    if n_qubits is None:
+        raise ValueError("model must define n_qubits attribute")
+
+    if angles is None:
+        angles = np.zeros(n_qubits, dtype=float)
+    elif torch.is_tensor(angles):
+        angles = angles.detach().cpu().numpy()
+    else:
+        angles = np.array(angles, dtype=float)
+
+    params = model.params
+    if torch.is_tensor(params):
+        params = params.detach().cpu().numpy()
+    else:
+        params = np.array(params, dtype=float)
+
+    entangling = getattr(model, "entangling", False)
+    circuit = data_to_circuit(angles, params, entangling=entangling)
+    save_circuit_png(circuit, filename)

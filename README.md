@@ -37,3 +37,16 @@ Quantum Learning from Label Proportion
 ```bash
 pytest
 ```
+
+## 回路図の保存
+`scripts/save_circuit_png.py` を実行することで、サンプル回路を描画した
+PNG ファイルを保存できます。
+```bash
+python scripts/save_circuit_png.py circuit.png
+```
+
+学習後のモデルから回路図を保存するには `src/run.py` を
+`--save-circuit` オプション付きで実行します。
+```bash
+python src/run.py --save-circuit trained_circuit.png
+```

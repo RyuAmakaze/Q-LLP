@@ -1,12 +1,21 @@
 import torch
 from torch.utils.data import DataLoader, Subset, random_split
 import torch.multiprocessing as mp
+import argparse
 
 
 def main() -> None:
     """Entry point for training and evaluation."""
     # Ensure CUDA works with DataLoader worker processes
     mp.set_start_method("spawn", force=True)
+
+    parser = argparse.ArgumentParser(description="Train Quantum LLP model")
+    parser.add_argument(
+        "--save-circuit",
+        metavar="PNG",
+        help="Save trained circuit diagram to the given file",
+    )
+    args = parser.parse_args()
 
     from model import QuantumLLPModel
     from trainer import train_model, evaluate_model
@@ -116,6 +125,14 @@ def main() -> None:
 # 4. Save model
     torch.save(model.state_dict(), "trained_quantum_llp.pt")
     print("Model saved to trained_quantum_llp.pt")
+
+    if args.save_circuit:
+        try:
+            from quantum_utils import save_model_circuit
+            save_model_circuit(model, args.save_circuit)
+            print(f"Circuit diagram saved to {args.save_circuit}")
+        except Exception as exc:  # pragma: no cover - optional feature
+            print(f"Could not save circuit diagram: {exc}")
 
 # 5. Inference on a few test batches and evaluation
     model.eval()
