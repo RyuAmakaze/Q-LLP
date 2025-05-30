@@ -142,5 +142,9 @@ def main() -> None:
     metrics = evaluate_model(model, test_loader, NUM_CLASSES, device=DEVICE)
     print("Evaluation on test set:", metrics)
 
+    # Explicitly shut down worker processes to avoid leaked semaphores
+    if hasattr(test_loader, "_shutdown_workers"):
+        test_loader._shutdown_workers()
+
 if __name__ == "__main__":
     main()
