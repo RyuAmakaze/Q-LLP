@@ -281,6 +281,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
         num_workers=NUM_WORKERS,
         pin_memory=PIN_MEMORY,
         persistent_workers=NUM_WORKERS > 0,
+        multiprocessing_context="spawn",
     )
 
     all_x = []
@@ -289,7 +290,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
     step = max(1, total // 10)
 
     print(desc)
-    for i, (x, y) in tqdm(enumerate(loader, 1)，desc="preload_dataset"):
+    for i, (x, y) in tqdm(enumerate(loader, 1), desc="preload_dataset"):
         all_x.append(x.cpu())
         all_y.append(y.cpu())
         if i == 1 or i == total or i % step == 0:

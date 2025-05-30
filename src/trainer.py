@@ -46,6 +46,7 @@ def train_model(
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
             persistent_workers=NUM_WORKERS > 0,
+            multiprocessing_context="spawn",
         )
         val_loader = DataLoader(
             val_dataset,
@@ -53,6 +54,7 @@ def train_model(
             num_workers=NUM_WORKERS,
             pin_memory=PIN_MEMORY,
             persistent_workers=NUM_WORKERS > 0,
+            multiprocessing_context="spawn",
         )
 
         teacher_probs_train = teacher_probs_train.to(device)
