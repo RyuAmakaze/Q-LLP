@@ -1,6 +1,9 @@
 import torch
 from torch.utils.data import DataLoader, Subset, random_split
 import torch.multiprocessing as mp
+import os
+import numpy as np
+from quantum_utils import data_to_circuit, save_circuit_diagram
 
 
 def main() -> None:
@@ -48,6 +51,22 @@ def main() -> None:
     train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
     test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
 
+    if PRELOAD_DATASET:
+        cache_train = os.path.join(DATA_ROOT, f"{DATASET}_train_features.pt")
+        train_full = preload_dataset(
+            train_full,
+            batch_size=PRELOAD_BATCH_SIZE,
+            desc="Preloading full training features...",
+            cache_path=cache_train,
+        )
+        cache_test = os.path.join(DATA_ROOT, f"{DATASET}_test_features.pt")
+        test_dataset = preload_dataset(
+            test_dataset,
+            batch_size=PRELOAD_BATCH_SIZE,
+            desc="Preloading test features...",
+            cache_path=cache_test,
+        )
+
     train_indices = filter_indices_by_class(train_full, NUM_CLASSES)[:SUBSET_SIZE]
     subset = Subset(train_full, train_indices)
     val_size = int(len(subset) * VAL_SPLIT)
@@ -62,26 +81,9 @@ def main() -> None:
     print(f"Number of training bags: {num_train_bags}")
     print(f"Number of validation bags: {num_val_bags}")
 
-    if PRELOAD_DATASET:
-        train_subset = preload_dataset(
-            train_subset,
-            batch_size=PRELOAD_BATCH_SIZE,
-            desc="Preloading training subset features...",
-        )
-        val_subset = preload_dataset(
-            val_subset,
-            batch_size=PRELOAD_BATCH_SIZE,
-            desc="Preloading validation subset features...",
-        )
 
     test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
     test_subset = Subset(test_dataset, test_indices)
-    if PRELOAD_DATASET:
-        test_subset = preload_dataset(
-            test_subset,
-            batch_size=PRELOAD_BATCH_SIZE,
-            desc="Preloading test subset features...",
-        )
     test_loader = DataLoader(
         test_subset,
         batch_size=BAG_SIZE,
@@ -116,6 +118,13 @@ def main() -> None:
 # 4. Save model
     torch.save(model.state_dict(), "trained_quantum_llp.pt")
     print("Model saved to trained_quantum_llp.pt")
+
+    try:
+        circuit = data_to_circuit(np.zeros(NUM_QUBITS), model.params.detach(), entangling=NUM_LAYERS > 1)
+        save_circuit_diagram(circuit, "trained_circuit.png")
+        print("Circuit diagram saved to trained_circuit.png")
+    except Exception as e:  # pragma: no cover - optional feature
+        print(f"Failed to save circuit diagram: {e}")
 
 # 5. Inference on a few test batches and evaluation
     model.eval()

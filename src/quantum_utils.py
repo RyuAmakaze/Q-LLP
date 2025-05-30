@@ -117,3 +117,18 @@ def parameter_shift_gradients(angles, params, shift=np.pi/2):
         grads.append(grad)
     grads = torch.stack(grads, dim=0)
     return base_probs, grads
+
+
+def save_circuit_diagram(circuit, file_path):
+    """Save a visual representation of ``circuit`` to ``file_path``."""
+    if QuantumCircuit is None:
+        raise ImportError("qiskit is required for drawing circuits")
+
+    try:
+        fig = circuit.draw(output="mpl")
+        fig.savefig(file_path)
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+    except Exception as exc:  # pragma: no cover - optional drawing
+        raise RuntimeError(f"Failed to save circuit diagram: {exc}") from exc

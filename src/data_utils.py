@@ -140,7 +140,17 @@ def filter_indices_by_class(dataset, num_classes):
     """Return indices of samples whose label is < num_classes."""
     targets = getattr(dataset, "targets", None)
     if targets is None:
-        targets = dataset.labels
+        targets = getattr(dataset, "labels", None)
+    if targets is None and isinstance(dataset, torch.utils.data.TensorDataset):
+        if len(dataset.tensors) < 2:
+            raise ValueError(
+                "TensorDataset must contain at least two tensors to provide labels"
+            )
+        targets = dataset.tensors[1]
+    if targets is None:
+        raise ValueError(
+            "Could not locate labels. Provide 'targets', 'labels', or use a TensorDataset with labels"
+        )
     return [i for i, t in enumerate(targets) if int(t) < num_classes]
 
 
@@ -270,9 +280,25 @@ def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
     return sampler, teacher_tensor
 
 
-def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "Preloading dataset"):
-    """Load all features and labels into memory with progress output."""
+def preload_dataset(
+    dataset,
+    batch_size: int = PRELOAD_BATCH_SIZE,
+    desc: str = "Preloading dataset",
+    cache_path: Optional[str] = None,
+):
+    """Load all features and labels into memory with optional caching.
+
+    If ``cache_path`` is provided and the file exists, the features and labels
+    are loaded from disk.  Otherwise they are computed and saved to
+    ``cache_path`` when specified.
+    """
     from torch.utils.data import DataLoader, TensorDataset
+    import os
+
+    if cache_path is not None and os.path.exists(cache_path):
+        print(f"Loading cached dataset from {cache_path}")
+        data = torch.load(cache_path)
+        return TensorDataset(data["features"], data["labels"])
 
     loader = DataLoader(
         dataset,
@@ -298,4 +324,9 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
 
     features = torch.cat(all_x)
     labels = torch.cat(all_y)
+    if cache_path is not None:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        torch.save({"features": features, "labels": labels}, cache_path)
+        print(f"Saved cached dataset to {cache_path}")
+
     return TensorDataset(features, labels)
