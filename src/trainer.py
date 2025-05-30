@@ -3,7 +3,16 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from config import DEFAULT_EPOCHS, DEFAULT_LR, DEVICE, BAG_SIZE, NUM_CLASSES, SHUFFLE_DATA
+from config import (
+    DEFAULT_EPOCHS,
+    DEFAULT_LR,
+    DEVICE,
+    BAG_SIZE,
+    NUM_CLASSES,
+    SHUFFLE_DATA,
+    NUM_WORKERS,
+    PIN_MEMORY,
+)
 from data_utils import create_random_bags
 
 def train_model(
@@ -31,8 +40,20 @@ def train_model(
             val_dataset, bag_size, num_classes, shuffle=shuffle
         )
 
-        train_loader = DataLoader(train_dataset, batch_sampler=train_sampler)
-        val_loader = DataLoader(val_dataset, batch_sampler=val_sampler)
+        train_loader = DataLoader(
+            train_dataset,
+            batch_sampler=train_sampler,
+            num_workers=NUM_WORKERS,
+            pin_memory=PIN_MEMORY,
+            persistent_workers=NUM_WORKERS > 0,
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_sampler=val_sampler,
+            num_workers=NUM_WORKERS,
+            pin_memory=PIN_MEMORY,
+            persistent_workers=NUM_WORKERS > 0,
+        )
 
         teacher_probs_train = teacher_probs_train.to(device)
         teacher_probs_val = teacher_probs_val.to(device)
@@ -43,7 +64,7 @@ def train_model(
         for i, (x_batch, _) in enumerate(train_loader):
             # Each DataLoader batch represents one bag
             optimizer.zero_grad()
-            x_batch = x_batch.to(device)
+            x_batch = x_batch.to(device, non_blocking=PIN_MEMORY)
             pred_probs = model(x_batch)
             # Average predictions within the bag
             bag_pred = pred_probs.mean(dim=0)
@@ -67,7 +88,7 @@ def train_model(
             val_total_loss = 0.0
             for j, (x_batch, _) in enumerate(val_loader):
                 # Validation is also performed bag by bag
-                x_batch = x_batch.to(device)
+                x_batch = x_batch.to(device, non_blocking=PIN_MEMORY)
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
                 target = teacher_probs_val[j].to(device, dtype=bag_pred.dtype)

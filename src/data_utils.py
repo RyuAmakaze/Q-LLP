@@ -29,7 +29,14 @@ except Exception:  # pragma: no cover - torchvision may not be installed
     tv_datasets = types.SimpleNamespace(MNIST=object, CIFAR10=object, CIFAR100=object)
     tv_transforms = types.SimpleNamespace(Compose=DummyCompose, Lambda=DummyLambda, ToTensor=DummyToTensor)
 
-from config import ENCODING_DIM, USE_DINO, DEVICE
+from config import (
+    ENCODING_DIM,
+    USE_DINO,
+    DEVICE,
+    PRELOAD_BATCH_SIZE,
+    NUM_WORKERS,
+    PIN_MEMORY,
+)
 
 
 def get_dataset_class(name: str):
@@ -242,3 +249,33 @@ def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
     sampler = FixedBatchSampler(batches)
     teacher_tensor = torch.stack(teacher_props)
     return sampler, teacher_tensor
+
+
+def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "Preloading dataset"):
+    """Load all features and labels into memory with progress output."""
+    from torch.utils.data import DataLoader, TensorDataset
+
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=NUM_WORKERS,
+        pin_memory=PIN_MEMORY,
+        persistent_workers=NUM_WORKERS > 0,
+    )
+
+    all_x = []
+    all_y = []
+    total = len(loader)
+    step = max(1, total // 10)
+
+    print(desc)
+    for i, (x, y) in enumerate(loader, 1):
+        all_x.append(x.cpu())
+        all_y.append(y.cpu())
+        if i == 1 or i == total or i % step == 0:
+            print(f"{desc} {i}/{total} batches")
+
+    features = torch.cat(all_x)
+    labels = torch.cat(all_y)
+    return TensorDataset(features, labels)

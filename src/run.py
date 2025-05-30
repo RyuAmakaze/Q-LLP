@@ -8,6 +8,7 @@ from data_utils import (
     get_transform,
     filter_indices_by_class,
     compute_proportions,
+    preload_dataset,
 )
 from config import (
     DATA_ROOT,
@@ -22,6 +23,10 @@ from config import (
     NUM_CLASSES,
     DEVICE,
     USE_DINO,
+    NUM_WORKERS,
+    PIN_MEMORY,
+    PRELOAD_DATASET,
+    PRELOAD_BATCH_SIZE,
 )
 
 # Print basic information
@@ -49,9 +54,34 @@ print(f"Bag size: {BAG_SIZE}")
 print(f"Number of training bags: {num_train_bags}")
 print(f"Number of validation bags: {num_val_bags}")
 
+if PRELOAD_DATASET:
+    train_subset = preload_dataset(
+        train_subset,
+        batch_size=PRELOAD_BATCH_SIZE,
+        desc="Preloading training subset features...",
+    )
+    val_subset = preload_dataset(
+        val_subset,
+        batch_size=PRELOAD_BATCH_SIZE,
+        desc="Preloading validation subset features...",
+    )
+
 test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
 test_subset = Subset(test_dataset, test_indices)
-test_loader = DataLoader(test_subset, batch_size=BAG_SIZE, shuffle=False)
+if PRELOAD_DATASET:
+    test_subset = preload_dataset(
+        test_subset,
+        batch_size=PRELOAD_BATCH_SIZE,
+        desc="Preloading test subset features...",
+    )
+test_loader = DataLoader(
+    test_subset,
+    batch_size=BAG_SIZE,
+    shuffle=False,
+    num_workers=NUM_WORKERS,
+    pin_memory=PIN_MEMORY,
+    persistent_workers=NUM_WORKERS > 0,
+)
 print(f"Test subset size: {len(test_subset)}")
 
 # 2. Teacher class distributions are computed inside the trainer
@@ -78,7 +108,7 @@ print("Model saved to trained_quantum_llp.pt")
 model.eval()
 with torch.no_grad():
     for i, (x_batch, y_batch) in enumerate(test_loader):
-        x_batch = x_batch.to(DEVICE)
+        x_batch = x_batch.to(DEVICE, non_blocking=PIN_MEMORY)
         pred_probs = model(x_batch)
         bag_pred = pred_probs.mean(dim=0)
         bag_true = compute_proportions(y_batch, NUM_CLASSES)
