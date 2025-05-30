@@ -8,9 +8,11 @@ Quantum Learning from Label Proportion
    source venv/bin/activate
    ```
 2. 依存パッケージをインストールします。
+   `matplotlib` を含めると回路図の保存が可能になります。
    ```bash
-   pip install torch torchvision qiskit pytest
+   pip install torch torchvision qiskit matplotlib pytest
    ```
+   `qiskit` のインポートに失敗する場合は、後述の Docker 環境の利用も検討してください。
 3. 学習を実行します。
    ```bash
    python src/run.py
@@ -27,6 +29,7 @@ Quantum Learning from Label Proportion
    ```bash
    docker build -t q-llp -f Dockerfile/Dockerfile .
    ```
+   ここで作成されるイメージには `qiskit`、`torchvision`、`matplotlib` など必要な依存関係がすべて含まれています。
 2. 作業ディレクトリをコンテナにマウントして学習を実行します。GPU を利用する場合は `--gpus all` を指定します。
    ```bash
    sudo docker run --rm --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
