@@ -32,6 +32,12 @@ Quantum Learning from Label Proportion
    sudo docker run --rm --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
    ```
 
+Dockerに入るだけ
+```bash
+sudo docker run --rm --gpus all -v $(pwd):/app -w /app -it q-llp bash
+```
+
+
 ## テスト
 `pytest` を実行してユニットテストを確認できます。
 ```bash
