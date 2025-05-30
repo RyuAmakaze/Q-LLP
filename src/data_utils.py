@@ -4,6 +4,7 @@ import random
 import math
 from typing import Sequence, List
 from torch.utils.data import Sampler
+from tqdm import tqdm
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -288,7 +289,7 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
     step = max(1, total // 10)
 
     print(desc)
-    for i, (x, y) in enumerate(loader, 1):
+    for i, (x, y) in tqdm(enumerate(loader, 1)，desc="preload_dataset"):
         all_x.append(x.cpu())
         all_y.append(y.cpu())
         if i == 1 or i == total or i % step == 0:
