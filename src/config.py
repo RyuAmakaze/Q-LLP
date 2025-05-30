@@ -1,5 +1,6 @@
 # Configuration for Q-LLP project
 import torch
+import os
 
 # Dataset settings
 DATA_ROOT = "./data"
@@ -11,6 +12,14 @@ USE_DINO = True  # whether to encode images using DINOv2 features
 SHUFFLE_DATA = True
 DATASET = "CIFAR10"  # Options: MNIST, CIFAR10, CIFAR100
 VAL_SPLIT = 0.2
+
+# DataLoader settings
+NUM_WORKERS = min(4, os.cpu_count() or 1)
+PIN_MEMORY = torch.cuda.is_available()
+
+# Dataset preload
+PRELOAD_DATASET = True
+PRELOAD_BATCH_SIZE = 128
 
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

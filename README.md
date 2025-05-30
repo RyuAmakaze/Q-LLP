@@ -15,8 +15,10 @@ Quantum Learning from Label Proportion
    ```bash
    python src/run.py
    ```
-   学習が完了すると `trained_quantum_llp.pt` が作成されます。
-   CUDA が利用可能な環境では自動的に GPU を使用して計算します。
+  学習が完了すると `trained_quantum_llp.pt` が作成されます。
+  CUDA が利用可能な環境では自動的に GPU を使用して計算します。
+  データ読み込みのワーカー数は `config.NUM_WORKERS` で調整できます。
+  DINO 特徴量を事前計算する場合は `config.PRELOAD_DATASET=True` を設定します。
 
 ## Docker での実行
 1. Docker イメージをビルドします。

@@ -4,6 +4,7 @@ import random
 import math
 from typing import Sequence, List
 from torch.utils.data import Sampler
+from torch.utils.data import DataLoader, TensorDataset
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -29,7 +30,7 @@ except Exception:  # pragma: no cover - torchvision may not be installed
     tv_datasets = types.SimpleNamespace(MNIST=object, CIFAR10=object, CIFAR100=object)
     tv_transforms = types.SimpleNamespace(Compose=DummyCompose, Lambda=DummyLambda, ToTensor=DummyToTensor)
 
-from config import ENCODING_DIM, USE_DINO, DEVICE
+from config import ENCODING_DIM, USE_DINO, DEVICE, NUM_WORKERS, PIN_MEMORY
 
 
 def get_dataset_class(name: str):
@@ -242,3 +243,31 @@ def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
     sampler = FixedBatchSampler(batches)
     teacher_tensor = torch.stack(teacher_props)
     return sampler, teacher_tensor
+
+
+def preload_dataset(
+    dataset,
+    device=DEVICE,
+    batch_size=64,
+    num_workers=NUM_WORKERS,
+    pin_memory=PIN_MEMORY,
+):
+    """Return a TensorDataset with features computed in advance."""
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=False,
+    )
+
+    features = []
+    labels = []
+    for x, y in loader:
+        x = x.to(device, non_blocking=pin_memory)
+        features.append(x.cpu())
+        labels.append(y.cpu())
+    features = torch.cat(features)
+    labels = torch.cat(labels)
+    return TensorDataset(features, labels)
