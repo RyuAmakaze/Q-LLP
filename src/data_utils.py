@@ -324,6 +324,11 @@ def preload_dataset(
 
     features = torch.cat(all_x)
     labels = torch.cat(all_y)
+
+    # Explicitly shut down worker processes to avoid leaked semaphores
+    if hasattr(loader, "_shutdown_workers"):
+        loader._shutdown_workers()
+
     if cache_path is not None:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         torch.save({"features": features, "labels": labels}, cache_path)
