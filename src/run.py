@@ -1,5 +1,9 @@
 import torch
 from torch.utils.data import DataLoader, Subset, random_split
+import torch.multiprocessing as mp
+
+# Ensure CUDA works with DataLoader worker processes
+mp.set_start_method("spawn", force=True)
 
 from model import QuantumLLPModel
 from trainer import train_model, evaluate_model
