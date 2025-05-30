@@ -69,14 +69,22 @@ class DinoEncoder:
     def _load(self):
         import os
         import torch.hub
+        import fcntl
         from torchvision import transforms as _tt
 
         # Avoid race conditions when multiple workers load the model
-        os.makedirs(torch.hub.get_dir(), exist_ok=True)
+        cache_dir = torch.hub.get_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+        lock_path = os.path.join(cache_dir, "dinov2.lock")
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                self.model = torch.hub.load(
+                    "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
+                )
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
 
-        self.model = torch.hub.load(
-            "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
-        )
         self.model.eval()
         self.model.to(DEVICE)
 
