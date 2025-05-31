@@ -43,3 +43,6 @@ sudo docker run --rm --gpus all -v $(pwd):/app -w /app -it q-llp bash
 ```bash
 pytest
 ```
+
+Multi-layer or entangling quantum circuits are now differentiated using the
+parameter-shift rule.
