@@ -8,7 +8,7 @@ SUBSET_SIZE = 6000
 BAG_SIZE = 10  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 384
-USE_DINO = False  # whether to encode images using DINOv2 features
+USE_DINO = True  # whether to encode images using DINOv2 features
 SHUFFLE_DATA = True
 DATASET = "CIFAR10"  # Options: MNIST, CIFAR10, CIFAR100
 VAL_SPLIT = 0.2
@@ -18,7 +18,7 @@ NUM_WORKERS = min(4, os.cpu_count() or 1)
 PIN_MEMORY = torch.cuda.is_available()
 
 # Dataset preloading settings
-PRELOAD_DATASET = True
+PRELOAD_DATASET = False
 PRELOAD_BATCH_SIZE = 64
 
 # Device configuration
