@@ -18,7 +18,7 @@ NUM_WORKERS = min(4, os.cpu_count() or 1)
 PIN_MEMORY = torch.cuda.is_available()
 
 # Dataset preloading settings
-PRELOAD_DATASET = False
+PRELOAD_DATASET = True
 PRELOAD_BATCH_SIZE = 64
 
 # Device configuration
