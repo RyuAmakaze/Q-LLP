@@ -4,7 +4,14 @@ import random
 import math
 from typing import Sequence, List
 from torch.utils.data import Sampler
-from tqdm import tqdm
+try:
+    from tqdm import tqdm  # type: ignore
+except Exception:  # pragma: no cover - tqdm may be missing
+    def tqdm(iterable=None, *args, **kwargs):
+        """Fallback tqdm that returns the iterable unchanged."""
+        if iterable is None:
+            return lambda x: x
+        return iterable
 
 try:
     from torchvision import datasets as tv_datasets, transforms as tv_transforms
@@ -67,6 +74,17 @@ class DinoEncoder:
         self.model = None
         self.preprocess = None
 
+    def __getstate__(self):
+        # Drop loaded model when pickling to avoid importing dinov2 in workers
+        return {
+            "model": None,
+            "preprocess": None,
+        }
+
+    def __setstate__(self, state):
+        self.model = None
+        self.preprocess = None
+
     def _load(self):
         import os
         import torch.hub
@@ -126,14 +144,24 @@ def get_transform(use_dino: Optional[bool] = None):
     if use_dino is None:
         use_dino = USE_DINO
 
-    if not use_dino:
-        return tv_transforms.Compose([
-            tv_transforms.Lambda(_maybe_to_tensor),
-            tv_transforms.Lambda(lambda x: x.view(-1)),
-            tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
-        ])
+    if use_dino:
+        try:
+            enc = DinoEncoder()
+            # Defer loading to workers to avoid pickling the model
+            # but still check that loading succeeds if possible
+            enc._load()
+            # Immediately drop the loaded model so the object can be pickled
+            enc.model = None
+            enc.preprocess = None
+            return enc
+        except Exception:  # pragma: no cover - network/dependency issues
+            print("Warning: failed to load DINOv2 model, falling back to basic transform")
 
-    return DinoEncoder()
+    return tv_transforms.Compose([
+        tv_transforms.Lambda(_maybe_to_tensor),
+        tv_transforms.Lambda(lambda x: x.view(-1)),
+        tv_transforms.Lambda(lambda x: x[:ENCODING_DIM]),
+    ])
 
 
 def filter_indices_by_class(dataset, num_classes):
