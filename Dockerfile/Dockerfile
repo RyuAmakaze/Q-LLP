@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir \
     pylatexenc \
     matplotlib \
     torchvision \
-    tqdm
+    tqdm \
+    pylatexenc
 
 # Default command runs the training script.
 CMD ["python", "src/run.py"]
