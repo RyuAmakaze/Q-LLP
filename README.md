@@ -18,9 +18,16 @@ Quantum Learning from Label Proportion
   学習が完了すると `trained_quantum_llp.pt` が作成されます。
   CUDA が利用可能な環境では自動的に GPU を使用して計算します。
   データ読み込みのワーカー数は `config.NUM_WORKERS` で調整できます。
-  GPU 利用時にワーカーを有効にするため、スクリプト冒頭で
-  `torch.multiprocessing.set_start_method("spawn")` を呼び出しています。
-  特徴量を事前計算してメモリに展開するには `config.PRELOAD_DATASET` を `True` に設定します。
+GPU 利用時にワーカーを有効にするため、スクリプト冒頭で
+`torch.multiprocessing.set_start_method("spawn")` を呼び出しています。
+特徴量を事前計算してメモリに展開するには `config.PRELOAD_DATASET` を `True` に設定します。
+
+学習済みモデルから量子回路図を描画するには `plot_circuit.py` を使用します。
+以下のように実行すると `circuit.png` に図が保存されます。
+```bash
+python src/plot_circuit.py trained_quantum_llp.pt -o circuit.png
+```
+`-o` を省略すると、図がテキストとして標準出力に表示されます。
 
 ## Docker での実行
 1. Docker イメージをビルドします。
