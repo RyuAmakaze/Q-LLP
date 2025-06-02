@@ -10,7 +10,6 @@ from qiskit.circuit.library import (
     CRYGate,
     CU3Gate,
     RXXGate,
-    MultiRZGate,
 )
 try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
     from qiskit.circuit.library import IsingXYGate
@@ -19,6 +18,16 @@ except Exception:  # pragma: no cover - handle version differences
         from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
     except Exception:
         from qiskit.circuit.library import XYGate as IsingXYGate
+
+def multi_rz(qc: QuantumCircuit, qubits: list[int], theta: float):
+    # CNOT チェーン
+    for i in range(len(qubits) - 1):
+        qc.cx(qubits[i], qubits[i + 1])
+    # 最後の量子ビットに RZ をかける
+    qc.rz(theta, qubits[-1])
+    # CNOT チェーンを戻す
+    for i in reversed(range(len(qubits) - 1)):
+        qc.cx(qubits[i], qubits[i + 1])
 
 def data_to_circuit(angles, params=None, entangling=False):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
@@ -249,6 +258,6 @@ def adaptive_entangling_circuit(
 
     # Stage 5: global multi-qubit rotation
     global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
-    qc.append(MultiRZGate(global_angle, n_qubits), list(range(n_qubits)))
+    qc.append(multi_rz(global_angle, n_qubits), list(range(n_qubits)))
 
     return qc
