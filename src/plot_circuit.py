@@ -1,6 +1,6 @@
 import argparse
 import torch
-from config import NUM_QUBITS, NUM_LAYERS
+from config import NUM_QUBITS, NUM_LAYERS, NUM_OUTPUT_QUBITS
 from model import QuantumLLPModel
 from quantum_utils import data_to_circuit
 
@@ -11,6 +11,7 @@ def load_model(path: str) -> QuantumLLPModel:
         n_qubits=NUM_QUBITS,
         num_layers=NUM_LAYERS,
         entangling=NUM_LAYERS > 1,
+        n_output_qubits=NUM_OUTPUT_QUBITS,
     )
     state = torch.load(path, map_location="cpu")
     model.load_state_dict(state)
@@ -20,7 +21,7 @@ def load_model(path: str) -> QuantumLLPModel:
 def main(model_path: str, output: str | None) -> None:
     model = load_model(model_path)
 
-    angles = torch.zeros(NUM_QUBITS)
+    angles = torch.zeros(NUM_QUBITS + NUM_OUTPUT_QUBITS)
     circuit = data_to_circuit(angles, model.params.detach(), entangling=model.entangling)
 
     if output:
