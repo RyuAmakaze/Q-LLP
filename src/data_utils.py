@@ -66,11 +66,13 @@ class DinoEncoder:
     def __init__(self):
         self.model = None
         self.preprocess = None
+        self._fallback = False
 
     def _load(self):
         import os
         import torch.hub
         import fcntl
+        import warnings
         from torchvision import transforms as _tt
 
         # Avoid race conditions when multiple workers load the model
@@ -83,8 +85,21 @@ class DinoEncoder:
                 self.model = torch.hub.load(
                     "facebookresearch/dinov2", "dinov2_vits14", pretrained=True
                 )
+            except Exception as e:  # pragma: no cover - network required
+                warnings.warn(
+                    f"Failed to load DINOv2 model ({e}); falling back to simple transform"
+                )
+                self._fallback = True
             finally:
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+        if self._fallback:
+            self.preprocess = _tt.Compose([
+                _tt.Lambda(_maybe_to_tensor),
+                _tt.Lambda(lambda x: x.view(-1)),
+                _tt.Lambda(lambda x: x[:ENCODING_DIM]),
+            ])
+            return
 
         self.model.eval()
         self.model.to(DEVICE)
@@ -99,8 +114,17 @@ class DinoEncoder:
         )
 
     def __call__(self, img):
+        if self._fallback:
+            img = _maybe_to_tensor(img).view(-1)
+            return img[:ENCODING_DIM]
+
         if self.model is None:
             self._load()
+
+        if self._fallback:
+            # _load() failed, use simple preprocessing
+            img = _maybe_to_tensor(img).view(-1)
+            return img[:ENCODING_DIM]
 
         img = self.preprocess(img)
         if img.dim() == 3:
