@@ -25,7 +25,7 @@ PRELOAD_BATCH_SIZE = 512
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model settings
-NUM_QUBITS = ENCODING_DIM  # number of feature-encoding qubits
+NUM_QUBITS = 20  # <24 number of feature-encoding qubits 
 # Optional dedicated output qubits.  When non-zero, ``NUM_QUBITS`` only
 # specifies the number of qubits used for encoding input features.
 NUM_OUTPUT_QUBITS = 4
