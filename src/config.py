@@ -4,7 +4,7 @@ import os
 
 # Dataset settings
 DATA_ROOT = "./data"
-SUBSET_SIZE = 600
+SUBSET_SIZE = 6000
 BAG_SIZE = 100  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 384
