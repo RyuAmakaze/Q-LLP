@@ -5,7 +5,7 @@ import os
 # Dataset settings
 DATA_ROOT = "./data"
 SUBSET_SIZE = 6000
-BAG_SIZE = 10  # number of samples per bag
+BAG_SIZE = 100  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 384
 USE_DINO = True  # whether to encode images using DINOv2 features
@@ -18,19 +18,21 @@ NUM_WORKERS = min(4, os.cpu_count() or 1)
 PIN_MEMORY = torch.cuda.is_available()
 
 # Dataset preloading settings
-PRELOAD_DATASET = False
-PRELOAD_BATCH_SIZE = 64
+PRELOAD_DATASET = True
+PRELOAD_BATCH_SIZE = 512
 
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model settings
-NUM_QUBITS = 4  # number of feature-encoding qubits
+NUM_QUBITS = 20  # <24 number of feature-encoding qubits 
 # Optional dedicated output qubits.  When non-zero, ``NUM_QUBITS`` only
 # specifies the number of qubits used for encoding input features.
-NUM_OUTPUT_QUBITS = 0
+
+NUM_OUTPUT_QUBITS = 4
 FEATURES_PER_LAYER = 11  # inputs consumed by adaptive_entangling_circuit
-NUM_LAYERS = 1  # number of parameterized layers in the quantum circuit
+NUM_LAYERS = 5  # number of parameterized layers in the quantum circuit
+
 NUM_CLASSES = 10
 MEASURE_SHOTS = 100
 
