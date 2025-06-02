@@ -3,27 +3,22 @@ import torch
 
 import config
 
-try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector
-    from qiskit.circuit.library import (
-        CRXGate,
-        CRYGate,
-        CU3Gate,
-        RXXGate,
-        MultiRZGate,
-    )
-    try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
-        from qiskit.circuit.library import IsingXYGate
-    except Exception:  # pragma: no cover - handle version differences
-        try:
-            from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
-        except Exception:
-            from qiskit.circuit.library import XYGate as IsingXYGate
-except Exception:  # pragma: no cover - qiskit may not be installed
-    QuantumCircuit = None
-    Statevector = None
-
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import (
+    CRXGate,
+    CRYGate,
+    CU3Gate,
+    RXXGate,
+    MultiRZGate,
+)
+try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
+    from qiskit.circuit.library import IsingXYGate
+except Exception:  # pragma: no cover - handle version differences
+    try:
+        from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
+    except Exception:
+        from qiskit.circuit.library import XYGate as IsingXYGate
 
 def data_to_circuit(angles, params=None, entangling=False):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
