@@ -8,7 +8,8 @@ WORKDIR /app
 RUN pip install --no-cache-dir \
     qiskit==2.0.2 \
     qiskit_aer==0.17.0 \
-    pytest==8.3.5
+    pytest==8.3.5 \
+    pylatexenc
 
 # Default command runs the training script.
 CMD ["python", "src/run.py"]
