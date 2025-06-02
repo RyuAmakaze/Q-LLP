@@ -3,21 +3,22 @@ import torch
 
 import config
 
-try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector
-    from qiskit.circuit.library import (
-        CRXGate,
-        CRYGate,
-        CU3Gate,
-        RXXGate,
-        IsingXYGate,
-        MultiRZGate,
-    )
-except Exception:  # pragma: no cover - qiskit may not be installed
-    QuantumCircuit = None
-    Statevector = None
-
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import (
+    CRXGate,
+    CRYGate,
+    CU3Gate,
+    RXXGate,
+    MultiRZGate,
+)
+try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
+    from qiskit.circuit.library import IsingXYGate
+except Exception:  # pragma: no cover - handle version differences
+    try:
+        from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
+    except Exception:
+        from qiskit.circuit.library import XYGate as IsingXYGate
 
 def data_to_circuit(angles, params=None, entangling=False):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
@@ -248,6 +249,6 @@ def adaptive_entangling_circuit(
 
     # Stage 5: global multi-qubit rotation
     global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
-    qc.append(MultiRZGate(global_angle, num_qubits), list(range(n_qubits)))
+    qc.append(MultiRZGate(global_angle, n_qubits), list(range(n_qubits)))
 
     return qc
