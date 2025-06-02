@@ -2,7 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 from config import NUM_CLASSES
-from quantum_utils import data_to_circuit, circuit_state_probs, QuantumCircuit
+from quantum_utils import (
+    data_to_circuit,
+    circuit_state_probs,
+    parameter_shift_gradients,
+    QuantumCircuit,
+)
 
 
 def kronecker_product(probs_list):
@@ -11,6 +16,28 @@ def kronecker_product(probs_list):
     for p in probs_list[1:]:
         result = torch.einsum("i,j->ij", result, p).reshape(-1)
     return result
+
+
+class CircuitProbFunction(torch.autograd.Function):
+    """Autograd function for differentiable circuit simulation."""
+
+    @staticmethod
+    def forward(ctx, params, x, entangling=False):
+        ctx.entangling = entangling
+        ctx.save_for_backward(params, x)
+
+        circuit = data_to_circuit(np.pi * x.cpu(), params.cpu(), entangling=entangling)
+        probs = circuit_state_probs(circuit)
+        return probs.to(params.device)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        params, x = ctx.saved_tensors
+        angles = np.pi * x.cpu()
+        _, grads = parameter_shift_gradients(angles, params.cpu(), entangling=ctx.entangling)
+        grads = grads.to(grad_output.device)
+        grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
+        return grad_params.to(params.device), None, None
 
 class QuantumLLPModel(nn.Module):
     def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False):
@@ -25,11 +52,10 @@ class QuantumLLPModel(nn.Module):
         use_circuit : bool, optional
             If ``True`` measurement probabilities are obtained by constructing
             and simulating a :class:`~qiskit.circuit.QuantumCircuit` using
-            :func:`data_to_circuit` and :func:`circuit_state_probs`. This path is
-            **not differentiable** and mainly provided for inspection or
-            debugging.  The default analytic calculation remains the default
-            behaviour when ``False``.  When ``num_layers`` > 1 or ``entangling``
-            is ``True`` this option is implicitly enabled.
+            :func:`data_to_circuit` and :func:`circuit_state_probs`. When
+            ``num_layers`` > 1 or ``entangling`` is ``True`` this option is
+            automatically enabled and gradients are computed using the
+            parameter-shift rule.
         entangling : bool, optional
             If ``True`` a chain of ``CX`` gates is inserted after each
             parameterized layer.
@@ -63,12 +89,8 @@ class QuantumLLPModel(nn.Module):
             if self.use_circuit:
                 if QuantumCircuit is None:
                     raise ImportError("qiskit is required for circuit simulation")
-                circuit = data_to_circuit(
-                    np.pi * x.cpu(), self.params.detach().cpu(), entangling=self.entangling
-                )
-                probs = circuit_state_probs(circuit)
+                probs = CircuitProbFunction.apply(self.params, x, self.entangling)
                 probs = probs[:NUM_CLASSES]
-                probs = probs.to(self.params.device)
             else:
                 angles = np.pi * x + self.params[0]
                 probs = self._state_probs(angles)[:NUM_CLASSES]

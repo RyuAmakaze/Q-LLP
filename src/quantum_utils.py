@@ -77,7 +77,7 @@ def circuit_state_probs(circuit):
     probs = state.probabilities()
     return torch.tensor(probs, dtype=torch.float32)
 
-def parameter_shift_gradients(angles, params, shift=np.pi/2):
+def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False):
     """Return probabilities and gradients via the parameter-shift rule.
 
     Parameters
@@ -85,10 +85,14 @@ def parameter_shift_gradients(angles, params, shift=np.pi/2):
     angles : Sequence[float] or torch.Tensor
         Data-encoding rotation angles for each qubit.
     params : Sequence[float] or torch.Tensor
-        Additional learned rotation angles.
+        Additional learned rotation angles. Can be ``(n_qubits,)`` or
+        ``(num_layers, n_qubits)``.
     shift : float, optional
         Shift amount for the parameter-shift rule (default: ``π/2``).
+    entangling : bool, optional
+        If ``True`` entangling ``CX`` gates are inserted between layers.
     """
+
     if QuantumCircuit is None:
         raise ImportError("qiskit is required for circuit simulation")
 
@@ -102,18 +106,42 @@ def parameter_shift_gradients(angles, params, shift=np.pi/2):
     else:
         params = np.array(params, dtype=float)
 
-    base_circuit = data_to_circuit(angles, params, entangling=False)
+    # Backwards compatible path: single layer without entanglement
+    if params.ndim == 1 and not entangling:
+        base_circuit = data_to_circuit(angles, params, entangling=False)
+        base_probs = circuit_state_probs(base_circuit)
+
+        grads = []
+        for i in range(len(params)):
+            shift_vec = np.zeros_like(params)
+            shift_vec[i] = shift
+            plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False)
+            minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False)
+            plus_probs = circuit_state_probs(plus_circ)
+            minus_probs = circuit_state_probs(minus_circ)
+            grad = 0.5 * (plus_probs - minus_probs)
+            grads.append(grad)
+        grads = torch.stack(grads, dim=0)
+        return base_probs, grads
+
+    # Multi-layer or entangling case
+    params = np.atleast_2d(params)
+    num_layers, n_qubits = params.shape
+
+    base_circuit = data_to_circuit(angles, params, entangling=entangling)
     base_probs = circuit_state_probs(base_circuit)
 
-    grads = []
-    for i in range(len(params)):
-        shift_vec = np.zeros_like(params)
-        shift_vec[i] = shift
-        plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False)
-        minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False)
-        plus_probs = circuit_state_probs(plus_circ)
-        minus_probs = circuit_state_probs(minus_circ)
-        grad = 0.5 * (plus_probs - minus_probs)
-        grads.append(grad)
-    grads = torch.stack(grads, dim=0)
+    grads = torch.zeros(num_layers, n_qubits, base_probs.numel(), dtype=base_probs.dtype)
+
+    for layer in range(num_layers):
+        for q in range(n_qubits):
+            shift_mat = np.zeros_like(params)
+            shift_mat[layer, q] = shift
+            plus_circ = data_to_circuit(angles, params + shift_mat, entangling=entangling)
+            minus_circ = data_to_circuit(angles, params - shift_mat, entangling=entangling)
+            plus_probs = circuit_state_probs(plus_circ)
+            minus_probs = circuit_state_probs(minus_circ)
+            grad = 0.5 * (plus_probs - minus_probs)
+            grads[layer, q] = grad
+
     return base_probs, grads
