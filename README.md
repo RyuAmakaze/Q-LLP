@@ -22,7 +22,7 @@ GPU 利用時にワーカーを有効にするため、スクリプト冒頭で
 `torch.multiprocessing.set_start_method("spawn")` を呼び出しています。
 特徴量を事前計算してメモリに展開するには `config.PRELOAD_DATASET` を `True` に設定します。
 
-学習済みモデルから量子回路図を描画するには `plot_circuit.py` を使用します。
+学習済みモデルから量子回路図を描画するには `plot_circuit.py` を使用します。(configはrun.py実行時と同じに)
 以下のように実行すると `circuit.png` に図が保存されます。
 ```bash
 python src/plot_circuit.py trained_quantum_llp.pt -o circuit.png
