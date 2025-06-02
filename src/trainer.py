@@ -30,7 +30,8 @@ def train_model(
     """Train model while recreating bags every epoch."""
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
+    # Use KL divergence between predicted and teacher class proportions
+    loss_fn = nn.KLDivLoss(reduction="batchmean")
 
     for epoch in range(epochs):
         train_sampler, teacher_probs_train = create_random_bags(
@@ -71,7 +72,8 @@ def train_model(
             # Average predictions within the bag
             bag_pred = pred_probs.mean(dim=0)
             target = teacher_probs_train[i].to(device, dtype=bag_pred.dtype)
-            loss = loss_fn(bag_pred, target)
+            # Compute KL divergence between log predictions and teacher proportions
+            loss = loss_fn(torch.log(bag_pred + 1e-9), target)
             loss.backward()
             optimizer.step()
 
@@ -94,7 +96,8 @@ def train_model(
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
                 target = teacher_probs_val[j].to(device, dtype=bag_pred.dtype)
-                loss = loss_fn(bag_pred, target)
+                # Validation loss uses the same KL divergence metric
+                loss = loss_fn(torch.log(bag_pred + 1e-9), target)
                 val_total_loss += loss.item()
             avg_val_loss = val_total_loss / len(val_loader)
         print(
