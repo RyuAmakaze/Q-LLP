@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from config import (
     DEFAULT_EPOCHS,
@@ -30,8 +31,7 @@ def train_model(
     """Train model while recreating bags every epoch."""
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    # Use KL divergence between predicted and teacher class proportions
-    loss_fn = nn.KLDivLoss(reduction="batchmean")
+    loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 
     for epoch in range(epochs):
         train_sampler, teacher_probs_train = create_random_bags(
@@ -64,7 +64,7 @@ def train_model(
         model.train()
         total_loss = 0.0
 
-        for i, (x_batch, _) in enumerate(train_loader):
+        for i, (x_batch, _) in tqdm(enumerate(train_loader), desc=f"learning iteration({len(train_loader)})"):
             # Each DataLoader batch represents one bag
             optimizer.zero_grad()
             x_batch = x_batch.to(device, non_blocking=PIN_MEMORY)
@@ -72,18 +72,11 @@ def train_model(
             # Average predictions within the bag
             bag_pred = pred_probs.mean(dim=0)
             target = teacher_probs_train[i].to(device, dtype=bag_pred.dtype)
-            # Compute KL divergence between log predictions and teacher proportions
-            loss = loss_fn(torch.log(bag_pred + 1e-9), target)
+            loss = loss_fn(bag_pred, target)
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
-
-            if log_interval > 0 and ((i + 1) % log_interval == 0 or i == 0 or (i + 1) == len(train_loader)):
-                print(
-                    f"Epoch {epoch+1}/{epochs} - Iteration {i+1}/{len(train_loader)}"
-                    f", Batch Loss: {loss.item():.4f}"
-                )
 
         avg_loss = total_loss / len(train_loader)
 
@@ -96,8 +89,7 @@ def train_model(
                 pred_probs = model(x_batch)
                 bag_pred = pred_probs.mean(dim=0)
                 target = teacher_probs_val[j].to(device, dtype=bag_pred.dtype)
-                # Validation loss uses the same KL divergence metric
-                loss = loss_fn(torch.log(bag_pred + 1e-9), target)
+                loss = loss_fn(bag_pred, target)
                 val_total_loss += loss.item()
             avg_val_loss = val_total_loss / len(val_loader)
         print(
