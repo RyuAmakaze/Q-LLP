@@ -57,10 +57,9 @@ class QuantumLLPModel(nn.Module):
             If ``True`` measurement probabilities are obtained by constructing
             and simulating a :class:`~qiskit.circuit.QuantumCircuit` using
             :func:`data_to_circuit` and :func:`circuit_state_probs`. When
-            ``num_layers`` > 1, ``entangling`` is ``True`` or
-            ``n_output_qubits`` is non-zero this option is automatically
-            enabled and gradients are computed using the parameter-shift
-            rule.
+            ``num_layers`` > 1 or ``entangling`` is ``True`` this option is
+            automatically enabled and gradients are computed using the
+            parameter-shift rule.
         entangling : bool, optional
             If ``True`` a chain of ``CX`` gates is inserted after each
             parameterized layer.
@@ -72,10 +71,43 @@ class QuantumLLPModel(nn.Module):
         self.n_qubits = n_qubits + n_output_qubits
         self.num_layers = num_layers
         self.entangling = entangling
-        self.use_circuit = use_circuit or num_layers > 1 or entangling or n_output_qubits > 0
+        self.use_circuit = use_circuit or num_layers > 1 or entangling
         self.params = nn.Parameter(
             torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
         )
+
+    def _first_n_probs(self, angles, n):
+        """Return probabilities for states 0..n-1 without full Kronecker."""
+        p0 = torch.cos(angles / 2) ** 2
+        p1 = torch.sin(angles / 2) ** 2
+        patterns = torch.tensor(
+            [list(map(int, format(i, f"0{self.n_qubits}b"))) for i in range(n)],
+            device=angles.device,
+            dtype=p0.dtype,
+        )
+        p0 = p0.unsqueeze(0).expand(n, -1)
+        p1 = p1.unsqueeze(0).expand(n, -1)
+        probs = torch.where(patterns == 1, p1, p0).prod(dim=1)
+        return probs
+
+    def _output_probs_fast(self, angles):
+        """Return probabilities for output qubits without full state vector."""
+        if self.n_output_qubits == 0:
+            raise ValueError("no output qubits")
+
+        out_angles = angles[self.n_feature_qubits :]
+        n = 2 ** self.n_output_qubits
+        p0 = torch.cos(out_angles / 2) ** 2
+        p1 = torch.sin(out_angles / 2) ** 2
+        patterns = torch.tensor(
+            [list(map(int, format(i, f"0{self.n_output_qubits}b"))) for i in range(n)],
+            device=angles.device,
+            dtype=p0.dtype,
+        )
+        p0 = p0.unsqueeze(0).expand(n, -1)
+        p1 = p1.unsqueeze(0).expand(n, -1)
+        probs = torch.where(patterns == 1, p1, p0).prod(dim=1)
+        return probs[:NUM_CLASSES]
 
     def _state_probs(self, angles):
         """Return probabilities of measuring each basis state for given angles."""
@@ -109,12 +141,29 @@ class QuantumLLPModel(nn.Module):
             angles[: self.n_feature_qubits] = x
 
             if self.use_circuit:
-                if QuantumCircuit is None:
-                    raise ImportError("qiskit is required for circuit simulation")
                 full_probs = CircuitProbFunction.apply(self.params, angles, self.entangling)
             else:
                 ang = np.pi * angles + self.params[0]
-                full_probs = self._state_probs(ang)
+                if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
+                    full_probs = self._first_n_probs(ang, NUM_CLASSES)
+                    probs = full_probs
+                    probs = probs.to(self.params.device)
+                    probs = probs / probs.sum()
+                    probs_batch.append(probs)
+                    continue
+                elif (
+                    self.n_output_qubits > 0
+                    and self.num_layers == 1
+                    and not self.entangling
+                    and NUM_CLASSES <= 2 ** self.n_output_qubits
+                ):
+                    probs = self._output_probs_fast(ang)
+                    probs = probs.to(self.params.device)
+                    probs = probs / probs.sum()
+                    probs_batch.append(probs)
+                    continue
+                else:
+                    full_probs = self._state_probs(ang)
 
             probs = self._output_probs(full_probs)
             probs = probs.to(self.params.device)

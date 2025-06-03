@@ -51,8 +51,6 @@ def data_to_circuit(angles, params=None, entangling=False):
     -----
     If qiskit is not installed, this function raises ``ImportError``.
     """
-    if QuantumCircuit is None:
-        raise ImportError("qiskit is required for circuit construction")
 
     if torch.is_tensor(angles):
         angles = angles.detach().cpu().numpy()
@@ -90,8 +88,6 @@ def data_to_circuit(angles, params=None, entangling=False):
 
 def circuit_state_probs(circuit):
     """Simulate ``circuit`` and return measurement probabilities."""
-    if Statevector is None:
-        raise ImportError("qiskit is required for circuit simulation")
 
     if circuit.num_qubits > 24:
         raise ValueError(
@@ -118,8 +114,6 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
         If ``True`` entangling ``CX`` gates are inserted between layers.
     """
 
-    if QuantumCircuit is None:
-        raise ImportError("qiskit is required for circuit simulation")
 
     if torch.is_tensor(angles):
         angles = angles.detach().cpu().numpy()
@@ -206,8 +200,6 @@ def adaptive_entangling_circuit(
         Scaling factor for the global ``MultiRZ`` gate (stage 5).
     """
 
-    if QuantumCircuit is None:
-        raise ImportError("qiskit is required for circuit construction")
 
     if torch.is_tensor(x):
         x = x.detach().cpu().numpy()

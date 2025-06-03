@@ -57,7 +57,8 @@ parameter-shift rule.
 ### Dedicated output qubits
 
 Setting `config.NUM_OUTPUT_QUBITS` to a value greater than zero adds
-additional qubits that are measured for class prediction. When output
-qubits are present, the model automatically switches to circuit-based
-simulation so that these qubits are properly connected to the feature
-encoding qubits.
+additional qubits that are measured for class prediction. Circuit
+simulation is still enabled automatically when entangling layers or
+multiple parameterized layers are used. When only a single non-entangling
+layer is present, class probabilities for the output qubits are computed
+analytically for improved performance.
