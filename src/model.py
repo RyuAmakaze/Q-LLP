@@ -57,9 +57,10 @@ class QuantumLLPModel(nn.Module):
             If ``True`` measurement probabilities are obtained by constructing
             and simulating a :class:`~qiskit.circuit.QuantumCircuit` using
             :func:`data_to_circuit` and :func:`circuit_state_probs`. When
-            ``num_layers`` > 1 or ``entangling`` is ``True`` this option is
-            automatically enabled and gradients are computed using the
-            parameter-shift rule.
+            ``num_layers`` > 1, ``entangling`` is ``True`` or
+            ``n_output_qubits`` is non-zero this option is automatically
+            enabled and gradients are computed using the parameter-shift
+            rule.
         entangling : bool, optional
             If ``True`` a chain of ``CX`` gates is inserted after each
             parameterized layer.
@@ -71,7 +72,7 @@ class QuantumLLPModel(nn.Module):
         self.n_qubits = n_qubits + n_output_qubits
         self.num_layers = num_layers
         self.entangling = entangling
-        self.use_circuit = use_circuit or num_layers > 1 or entangling
+        self.use_circuit = use_circuit or num_layers > 1 or entangling or n_output_qubits > 0
         self.params = nn.Parameter(
             torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
         )
