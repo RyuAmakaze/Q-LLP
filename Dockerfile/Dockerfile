@@ -4,9 +4,10 @@ FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 WORKDIR /app
 
 # Install system dependencies needed for building qiskit-aer with CUDA
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
-    git build-essential cmake libopenblas-dev \
-    && apt-get clean
+    git build-essential cmake libopenblas-dev tzdata \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install required Python packages (except qiskit-aer, we'll build that manually)
 RUN pip install --no-cache-dir \
@@ -16,14 +17,8 @@ RUN pip install --no-cache-dir \
     torchvision==0.16.0 \
     tqdm \
     pylatexenc \
+    qiskit-aer-gpu \
     xformers
-
-# Clone and build qiskit-aer with CUDA support
-RUN git clone --branch stable/0.17 https://github.com/Qiskit/qiskit-aer.git && \
-    cd qiskit-aer && \
-    python setup.py bdist_wheel --define USE_CUDA=1 && \
-    pip install dist/*.whl && \
-    cd .. && rm -rf qiskit-aer
 
 # Copy your project code
 COPY . /app
