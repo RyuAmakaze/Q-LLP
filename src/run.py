@@ -11,13 +11,13 @@ def main() -> None:
 
     from model import QuantumLLPModel
     from trainer import train_model, evaluate_model
-    from data_utils import (
+from data_utils import (
         get_dataset_class,
         get_transform,
         filter_indices_by_class,
         compute_proportions,
         preload_dataset,
-        load_or_extract_features,
+        load_feature_dataset,
     )
     from config import (
         DATA_ROOT,
@@ -48,24 +48,23 @@ def main() -> None:
 # 1. Prepare datasets
     transform = get_transform(use_dino=USE_DINO)
     DatasetClass = get_dataset_class(DATASET)
-    train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
-    test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
 
-    if USE_DINO:
-        feature_file_train = os.path.join(DATA_ROOT, f"{DATASET}_train_features.pt")
-        feature_file_test = os.path.join(DATA_ROOT, f"{DATASET}_test_features.pt")
-        train_full = load_or_extract_features(
-            train_full,
-            feature_file_train,
-            batch_size=PRELOAD_BATCH_SIZE,
-            desc="Extracting training features...",
-        )
-        test_dataset = load_or_extract_features(
-            test_dataset,
-            feature_file_test,
-            batch_size=PRELOAD_BATCH_SIZE,
-            desc="Extracting test features...",
-        )
+    feature_file_train = os.path.join(DATA_ROOT, f"{DATASET}_train_features.pt")
+    feature_file_test = os.path.join(DATA_ROOT, f"{DATASET}_test_features.pt")
+    use_feat_train = PRELOAD_DATASET and os.path.exists(feature_file_train)
+    use_feat_test = PRELOAD_DATASET and os.path.exists(feature_file_test)
+
+    if use_feat_train:
+        print(f"Loading pre-extracted training features from {feature_file_train}")
+        train_full = load_feature_dataset(feature_file_train)
+    else:
+        train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
+
+    if use_feat_test:
+        print(f"Loading pre-extracted test features from {feature_file_test}")
+        test_dataset = load_feature_dataset(feature_file_test)
+    else:
+        test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
 
     train_indices = filter_indices_by_class(train_full, NUM_CLASSES)[:SUBSET_SIZE]
     subset = Subset(train_full, train_indices)
@@ -81,7 +80,7 @@ def main() -> None:
     print(f"Number of training bags: {num_train_bags}")
     print(f"Number of validation bags: {num_val_bags}")
 
-    if PRELOAD_DATASET:
+    if PRELOAD_DATASET and not use_feat_train:
         train_subset = preload_dataset(
             train_subset,
             batch_size=PRELOAD_BATCH_SIZE,
@@ -95,7 +94,7 @@ def main() -> None:
 
     test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
     test_subset = Subset(test_dataset, test_indices)
-    if PRELOAD_DATASET:
+    if PRELOAD_DATASET and not use_feat_test:
         test_subset = preload_dataset(
             test_subset,
             batch_size=PRELOAD_BATCH_SIZE,

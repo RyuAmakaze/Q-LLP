@@ -363,3 +363,16 @@ def load_or_extract_features(
     print(f"Saving features to {save_path}")
     torch.save({"features": feats, "labels": labels}, save_path)
     return dataset
+
+
+def load_feature_dataset(path: str):
+    """Load a ``TensorDataset`` saved by :func:`load_or_extract_features`."""
+    from torch.utils.data import TensorDataset
+
+    data = torch.load(path)
+    if isinstance(data, dict):
+        feats = data.get("features")
+        labels = data.get("labels")
+    else:
+        feats, labels = data
+    return TensorDataset(feats, labels)
