@@ -1,3 +1,4 @@
+import os
 import torch
 from torch.utils.data import DataLoader, Subset, random_split
 import torch.multiprocessing as mp
@@ -16,6 +17,7 @@ def main() -> None:
         filter_indices_by_class,
         compute_proportions,
         preload_dataset,
+        load_or_extract_features,
     )
     from config import (
         DATA_ROOT,
@@ -48,6 +50,22 @@ def main() -> None:
     DatasetClass = get_dataset_class(DATASET)
     train_full = DatasetClass(root=DATA_ROOT, train=True, download=True, transform=transform)
     test_dataset = DatasetClass(root=DATA_ROOT, train=False, download=True, transform=transform)
+
+    if USE_DINO:
+        feature_file_train = os.path.join(DATA_ROOT, f"{DATASET}_train_features.pt")
+        feature_file_test = os.path.join(DATA_ROOT, f"{DATASET}_test_features.pt")
+        train_full = load_or_extract_features(
+            train_full,
+            feature_file_train,
+            batch_size=PRELOAD_BATCH_SIZE,
+            desc="Extracting training features...",
+        )
+        test_dataset = load_or_extract_features(
+            test_dataset,
+            feature_file_test,
+            batch_size=PRELOAD_BATCH_SIZE,
+            desc="Extracting test features...",
+        )
 
     train_indices = filter_indices_by_class(train_full, NUM_CLASSES)[:SUBSET_SIZE]
     subset = Subset(train_full, train_indices)

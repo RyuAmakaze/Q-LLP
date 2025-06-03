@@ -2,7 +2,7 @@ import types
 import torch
 import random
 import math
-from typing import Sequence, List
+from typing import Sequence, List, Optional
 from torch.utils.data import Sampler
 from tqdm import tqdm
 
@@ -164,7 +164,13 @@ def filter_indices_by_class(dataset, num_classes):
     """Return indices of samples whose label is < num_classes."""
     targets = getattr(dataset, "targets", None)
     if targets is None:
-        targets = dataset.labels
+        targets = getattr(dataset, "labels", None)
+    if targets is None and isinstance(dataset, torch.utils.data.TensorDataset):
+        if len(dataset.tensors) < 2:
+            raise ValueError(
+                "TensorDataset must contain at least two tensors to provide labels"
+            )
+        targets = dataset.tensors[1]
     return [i for i, t in enumerate(targets) if int(t) < num_classes]
 
 
@@ -323,3 +329,37 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
     features = torch.cat(all_x)
     labels = torch.cat(all_y)
     return TensorDataset(features, labels)
+
+
+def load_or_extract_features(
+    dataset,
+    save_path: str,
+    batch_size: int = PRELOAD_BATCH_SIZE,
+    desc: Optional[str] = None,
+):
+    """Return a dataset of features and labels, caching to disk.
+
+    If ``save_path`` exists, features and labels are loaded from the file.
+    Otherwise features are computed using ``preload_dataset`` and then saved
+    to ``save_path``.
+    """
+    import os
+    from torch.utils.data import TensorDataset
+
+    if os.path.exists(save_path):
+        print(f"Loading cached features from {save_path}")
+        data = torch.load(save_path)
+        if isinstance(data, dict):
+            feats = data.get("features")
+            labels = data.get("labels")
+        else:
+            feats, labels = data
+        return TensorDataset(feats, labels)
+
+    if desc is None:
+        desc = f"Extracting features to {save_path}"
+    dataset = preload_dataset(dataset, batch_size=batch_size, desc=desc)
+    feats, labels = dataset.tensors
+    print(f"Saving features to {save_path}")
+    torch.save({"features": feats, "labels": labels}, save_path)
+    return dataset
