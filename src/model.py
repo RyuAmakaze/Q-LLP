@@ -40,13 +40,17 @@ class CircuitProbFunction(torch.autograd.Function):
         return grad_params.to(params.device), None, None
 
 class QuantumLLPModel(nn.Module):
-    def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False):
+    def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False, n_output_qubits=0):
         """Quantum LLP model supporting optional deep entangling circuits.
 
         Parameters
         ----------
         n_qubits : int
-            Number of qubits / features encoded.
+            Number of qubits used to encode input features.
+        n_output_qubits : int, optional
+            Number of dedicated output qubits. When non-zero, the total number
+            of qubits is ``n_qubits + n_output_qubits`` and only the output
+            qubits are measured for predictions.
         num_layers : int, optional
             Number of parameterized layers applied after the data encoding.
         use_circuit : bool, optional
@@ -62,11 +66,48 @@ class QuantumLLPModel(nn.Module):
         """
 
         super().__init__()
-        self.n_qubits = n_qubits
+        self.n_feature_qubits = n_qubits
+        self.n_output_qubits = n_output_qubits
+        self.n_qubits = n_qubits + n_output_qubits
         self.num_layers = num_layers
         self.entangling = entangling
         self.use_circuit = use_circuit or num_layers > 1 or entangling
-        self.params = nn.Parameter(torch.randn(num_layers, n_qubits, dtype=torch.float32))
+        self.params = nn.Parameter(
+            torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
+        )
+
+    def _first_n_probs(self, angles, n):
+        """Return probabilities for states 0..n-1 without full Kronecker."""
+        p0 = torch.cos(angles / 2) ** 2
+        p1 = torch.sin(angles / 2) ** 2
+        patterns = torch.tensor(
+            [list(map(int, format(i, f"0{self.n_qubits}b"))) for i in range(n)],
+            device=angles.device,
+            dtype=p0.dtype,
+        )
+        p0 = p0.unsqueeze(0).expand(n, -1)
+        p1 = p1.unsqueeze(0).expand(n, -1)
+        probs = torch.where(patterns == 1, p1, p0).prod(dim=1)
+        return probs
+
+    def _output_probs_fast(self, angles):
+        """Return probabilities for output qubits without full state vector."""
+        if self.n_output_qubits == 0:
+            raise ValueError("no output qubits")
+
+        out_angles = angles[self.n_feature_qubits :]
+        n = 2 ** self.n_output_qubits
+        p0 = torch.cos(out_angles / 2) ** 2
+        p1 = torch.sin(out_angles / 2) ** 2
+        patterns = torch.tensor(
+            [list(map(int, format(i, f"0{self.n_output_qubits}b"))) for i in range(n)],
+            device=angles.device,
+            dtype=p0.dtype,
+        )
+        p0 = p0.unsqueeze(0).expand(n, -1)
+        p1 = p1.unsqueeze(0).expand(n, -1)
+        probs = torch.where(patterns == 1, p1, p0).prod(dim=1)
+        return probs[:NUM_CLASSES]
 
     def _state_probs(self, angles):
         """Return probabilities of measuring each basis state for given angles."""
@@ -80,21 +121,53 @@ class QuantumLLPModel(nn.Module):
         probs = kronecker_product(probs_list)
         return probs.to(angles.device)
 
+    def _output_probs(self, full_probs):
+        """Return class probabilities from full basis state probabilities."""
+        if self.n_output_qubits == 0:
+            return full_probs[:NUM_CLASSES]
+
+        probs = full_probs.view(2 ** self.n_feature_qubits, 2 ** self.n_output_qubits)
+        out_probs = probs.sum(dim=0)
+        return out_probs[:NUM_CLASSES]
+
     def forward(self, x_batch):
         x_batch = x_batch.to(self.params.device)
         probs_batch = []
         for x in x_batch:
-            if x.shape[0] != self.n_qubits:
-                x = x[: self.n_qubits]
+            if x.shape[0] != self.n_feature_qubits:
+                x = x[: self.n_feature_qubits]
+
+            angles = torch.zeros(self.n_qubits, device=x.device, dtype=x.dtype)
+            angles[: self.n_feature_qubits] = x
+
             if self.use_circuit:
-                if QuantumCircuit is None:
-                    raise ImportError("qiskit is required for circuit simulation")
-                probs = CircuitProbFunction.apply(self.params, x, self.entangling)
-                probs = probs[:NUM_CLASSES]
+                full_probs = CircuitProbFunction.apply(self.params, angles, self.entangling)
             else:
-                angles = np.pi * x + self.params[0]
-                probs = self._state_probs(angles)[:NUM_CLASSES]
+                ang = np.pi * angles + self.params[0]
+                if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
+                    full_probs = self._first_n_probs(ang, NUM_CLASSES)
+                    probs = full_probs
+                    probs = probs.to(self.params.device)
+                    probs = probs / probs.sum()
+                    probs_batch.append(probs)
+                    continue
+                elif (
+                    self.n_output_qubits > 0
+                    and self.num_layers == 1
+                    and not self.entangling
+                    and NUM_CLASSES <= 2 ** self.n_output_qubits
+                ):
+                    probs = self._output_probs_fast(ang)
+                    probs = probs.to(self.params.device)
+                    probs = probs / probs.sum()
+                    probs_batch.append(probs)
+                    continue
+                else:
+                    full_probs = self._state_probs(ang)
+
+            probs = self._output_probs(full_probs)
             probs = probs.to(self.params.device)
             probs = probs / probs.sum()
             probs_batch.append(probs)
+
         return torch.stack(probs_batch)

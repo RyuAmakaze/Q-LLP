@@ -25,6 +25,7 @@ def main() -> None:
         DATASET,
         VAL_SPLIT,
         NUM_QUBITS,
+        NUM_OUTPUT_QUBITS,
         NUM_LAYERS,
         RUN_EPOCHS,
         RUN_LR,
@@ -100,6 +101,7 @@ def main() -> None:
         n_qubits=NUM_QUBITS,
         num_layers=NUM_LAYERS,
         entangling=NUM_LAYERS > 1,
+        n_output_qubits=NUM_OUTPUT_QUBITS,
     ).to(DEVICE)
     train_model(
         model,

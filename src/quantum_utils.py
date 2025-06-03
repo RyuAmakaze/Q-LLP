@@ -1,13 +1,33 @@
 import numpy as np
 import torch
 
-try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector
-except Exception:  # pragma: no cover - qiskit may not be installed
-    QuantumCircuit = None
-    Statevector = None
+import config
 
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import (
+    CRXGate,
+    CRYGate,
+    CU3Gate,
+    RXXGate,
+)
+try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
+    from qiskit.circuit.library import IsingXYGate
+except Exception:  # pragma: no cover - handle version differences
+    try:
+        from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
+    except Exception:
+        from qiskit.circuit.library import XYGate as IsingXYGate
+
+def multi_rz(qc: QuantumCircuit, qubits: list[int], theta: float):
+    # CNOT チェーン
+    for i in range(len(qubits) - 1):
+        qc.cx(qubits[i], qubits[i + 1])
+    # 最後の量子ビットに RZ をかける
+    qc.rz(theta, qubits[-1])
+    # CNOT チェーンを戻す
+    for i in reversed(range(len(qubits) - 1)):
+        qc.cx(qubits[i], qubits[i + 1])
 
 def data_to_circuit(angles, params=None, entangling=False):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
@@ -31,8 +51,6 @@ def data_to_circuit(angles, params=None, entangling=False):
     -----
     If qiskit is not installed, this function raises ``ImportError``.
     """
-    if QuantumCircuit is None:
-        raise ImportError("qiskit is required for circuit construction")
 
     if torch.is_tensor(angles):
         angles = angles.detach().cpu().numpy()
@@ -70,8 +88,11 @@ def data_to_circuit(angles, params=None, entangling=False):
 
 def circuit_state_probs(circuit):
     """Simulate ``circuit`` and return measurement probabilities."""
-    if Statevector is None:
-        raise ImportError("qiskit is required for circuit simulation")
+
+    if circuit.num_qubits > 24:
+        raise ValueError(
+            f"circuit_state_probs: {circuit.num_qubits} qubits exceeds the 24 qubit limit of Statevector simulation"
+        )
 
     state = Statevector.from_instruction(circuit)
     probs = state.probabilities()
@@ -93,8 +114,6 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
         If ``True`` entangling ``CX`` gates are inserted between layers.
     """
 
-    if QuantumCircuit is None:
-        raise ImportError("qiskit is required for circuit simulation")
 
     if torch.is_tensor(angles):
         angles = angles.detach().cpu().numpy()
@@ -145,3 +164,92 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
             grads[layer, q] = grad
 
     return base_probs, grads
+
+
+def adaptive_entangling_circuit(
+    x,
+    *,
+    n_qubits=config.NUM_QUBITS,
+    features_per_layer=config.FEATURES_PER_LAYER,
+    lambdas=None,
+    gamma=1.0,
+    delta=1.0,
+):
+    """Return a multi-stage entangling circuit for ``x``.
+
+    This helper implements the six-stage design discussed in the
+    project notes. The number of qubits and required features can be
+    configured via :mod:`config`.
+
+    Parameters
+    ----------
+    x : Sequence[float] or torch.Tensor
+        Input features for a single layer.  At least
+        ``features_per_layer`` elements are required.
+    n_qubits : int, optional
+        Number of qubits used in the circuit.
+    features_per_layer : int, optional
+        Number of features consumed from ``x``.  By default this is
+        :data:`config.FEATURES_PER_LAYER`.
+    lambdas : Sequence[float], optional
+        Per-qubit scaling factors for stage 3. If ``None`` all ones are
+        used.
+    gamma : float, optional
+        Scaling factor for the long-range entangling gate (stage 4).
+    delta : float, optional
+        Scaling factor for the global ``MultiRZ`` gate (stage 5).
+    """
+
+
+    if torch.is_tensor(x):
+        x = x.detach().cpu().numpy()
+    x = np.array(x, dtype=float)
+
+    if len(x) < features_per_layer:
+        raise ValueError(
+            f"adaptive_entangling_circuit requires at least {features_per_layer} features"
+        )
+
+    if lambdas is None:
+        lambdas = np.ones(n_qubits)
+    else:
+        lambdas = np.asarray(lambdas, dtype=float)
+
+    qc = QuantumCircuit(n_qubits)
+
+    # Stage 0: local encoding
+    for j in range(n_qubits):
+        angle = np.pi * x[j]
+        qc.ry(float(angle), j)
+
+    # Stage 1: immediate neighbor entanglement
+    for j in range(n_qubits):
+        x_a = x[j]
+        x_b = x[(j + 1) % n_qubits]
+        angle = np.pi * (0.5 * x_a + 0.5 * x_b + 0.1 * (x_a - x_b))
+        qc.append(CRXGate(angle), [j, (j + 1) % n_qubits])
+
+    # Stage 2: next-nearest neighbor correlations
+    for j in range(n_qubits):
+        vals = [x[j], x[(j + 1) % n_qubits], x[(j + 2) % n_qubits]]
+        angle = np.pi * float(np.mean(vals))
+        qc.append(CRYGate(angle), [j, (j + 2) % n_qubits])
+
+    # Stage 3: adaptive CRot with layer-dependent scaling
+    for j in range(n_qubits):
+        x_a = x[j]
+        x_b = x[(j + 1) % n_qubits]
+        scale = lambdas[j % len(lambdas)]
+        angle = np.pi * scale * 0.5 * (x_a + x_b)
+        qc.append(CU3Gate(angle, 0.0, 0.0), [j, (j + 3) % n_qubits])
+
+    # Stage 4: long-range entanglement via IsingXY-like coupling
+    half = n_qubits // 2
+    for j in range(half):
+        qc.append(IsingXYGate(np.pi * gamma), [j, j + half])
+
+    # Stage 5: global multi-qubit rotation
+    global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
+    qc.append(multi_rz(global_angle, n_qubits), list(range(n_qubits)))
+
+    return qc

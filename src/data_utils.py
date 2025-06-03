@@ -107,7 +107,7 @@ class DinoEncoder:
         self.preprocess = _tt.Compose(
             [
                 _tt.Lambda(_maybe_to_tensor),
-                _tt.Resize(224),
+                _tt.Resize(224, antialias=True),
                 _tt.CenterCrop(224),
                 _tt.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
