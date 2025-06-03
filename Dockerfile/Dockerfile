@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir \
     pytest==8.3.5 \
     pylatexenc \
     matplotlib \
-    torchvision \
+    torchvision==0.16.0 \
     tqdm \
     xformers
 
