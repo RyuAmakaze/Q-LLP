@@ -85,17 +85,39 @@ def data_to_circuit(angles, params=None, entangling=False):
                     qc.cx(q, q + 1)
     return qc
 
-
 def circuit_state_probs(circuit):
-    """Simulate ``circuit`` and return measurement probabilities."""
+    """Simulate ``circuit`` and return measurement probabilities.
+
+    When CUDA and a GPU-enabled ``AerSimulator`` are available the
+    simulation is executed on the GPU for improved performance.  If the
+    GPU simulator is unavailable the function falls back to the default
+    :class:`~qiskit.quantum_info.Statevector` implementation.
+    """
 
     if circuit.num_qubits > 24:
         raise ValueError(
             f"circuit_state_probs: {circuit.num_qubits} qubits exceeds the 24 qubit limit of Statevector simulation"
         )
 
-    state = Statevector.from_instruction(circuit)
-    probs = state.probabilities()
+    probs = None
+
+    if torch.cuda.is_available():
+        try:
+            from qiskit_aer import AerSimulator
+
+            sim = AerSimulator(method="statevector", device="GPU")
+            circ = circuit.copy()
+            circ.save_statevector()
+            result = sim.run(circ).result()
+            state = result.get_statevector()
+            probs = state.probabilities(qargs=list(range(circuit.num_qubits))[::-1])
+        except Exception:
+            probs = None
+
+    if probs is None:
+        state = Statevector.from_instruction(circuit)
+        probs = state.probabilities(qargs=list(range(circuit.num_qubits))[::-1])
+
     return torch.tensor(probs, dtype=torch.float32)
 
 def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False):
