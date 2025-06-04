@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir \
     tqdm \
     pylatexenc \
     qiskit-aer-gpu \
-    xformers
+    xformers \
+    debugpy
 
 # Copy your project code
 COPY . /app
