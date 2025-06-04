@@ -11,10 +11,10 @@ from quantum_utils import (
 
 
 def kronecker_product(probs_list):
-    """Compute the Kronecker product of a list of probability vectors."""
+    """Compute the Kronecker product with qubit 0 as the least significant."""
     result = probs_list[0]
     for p in probs_list[1:]:
-        result = torch.einsum("i,j->ij", result, p).reshape(-1)
+        result = torch.einsum("i,j->ij", p, result).reshape(-1)
     return result
 
 
