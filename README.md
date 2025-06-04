@@ -36,7 +36,7 @@ python src/plot_circuit.py trained_quantum_llp.pt -o circuit.png
    ```
 2. 作業ディレクトリをコンテナにマウントして学習を実行します。GPU を利用する場合は `--gpus all` を指定します。
    ```bash
-   sudo docker run --rm --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
+   sudo docker run --rm --shm-size=2g --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
    ```
 
 Dockerに入るだけ
