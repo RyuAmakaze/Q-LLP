@@ -125,7 +125,7 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     total_correct = 0
 
     start = 0
-    for x_batch, y_batch in zip(batches, labels):
+    for x_batch, y_batch in tqdm(zip(batches, labels),f"model eval{len(labels)}"):
         batch_size = y_batch.size(0)
         preds = all_preds[start : start + batch_size]
         # Intentionally advance the start index by one less than the batch
