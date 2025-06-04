@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from config import NUM_CLASSES
+import config
 from quantum_utils import (
     data_to_circuit,
     circuit_state_probs,
@@ -22,22 +23,30 @@ class CircuitProbFunction(torch.autograd.Function):
     """Autograd function for differentiable circuit simulation."""
 
     @staticmethod
-    def forward(ctx, params, x, entangling=False):
+    def forward(ctx, params, x, entangling=False, qargs=None, shots=None):
         ctx.entangling = entangling
+        ctx.qargs = qargs
+        ctx.shots = shots
         ctx.save_for_backward(params, x)
 
         circuit = data_to_circuit(np.pi * x.cpu(), params.cpu(), entangling=entangling)
-        probs = circuit_state_probs(circuit)
+        probs = circuit_state_probs(circuit, qargs=qargs, shots=shots)
         return probs.to(params.device)
 
     @staticmethod
     def backward(ctx, grad_output):
         params, x = ctx.saved_tensors
         angles = np.pi * x.cpu()
-        _, grads = parameter_shift_gradients(angles, params.cpu(), entangling=ctx.entangling)
+        _, grads = parameter_shift_gradients(
+            angles,
+            params.cpu(),
+            entangling=ctx.entangling,
+            qargs=ctx.qargs,
+            shots=ctx.shots,
+        )
         grads = grads.to(grad_output.device)
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
-        return grad_params.to(params.device), None, None
+        return grad_params.to(params.device), None, None, None, None
 
 class QuantumLLPModel(nn.Module):
     def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False, n_output_qubits=0):
@@ -141,7 +150,14 @@ class QuantumLLPModel(nn.Module):
             angles[: self.n_feature_qubits] = x
 
             if self.use_circuit:
-                full_probs = CircuitProbFunction.apply(self.params, angles, self.entangling)
+                if self.n_output_qubits > 0:
+                    qargs = list(range(self.n_feature_qubits, self.n_qubits))
+                else:
+                    qargs = None
+                shots = getattr(config, "MEASURE_SHOTS", None)
+                full_probs = CircuitProbFunction.apply(
+                    self.params, angles, self.entangling, qargs, shots
+                )
             else:
                 ang = np.pi * angles + self.params[0]
                 if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
