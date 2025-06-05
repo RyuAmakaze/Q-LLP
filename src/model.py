@@ -72,8 +72,9 @@ class QuantumLLPModel(nn.Module):
         self.num_layers = num_layers
         self.entangling = entangling
         self.use_circuit = use_circuit or num_layers > 1 or entangling
+        # Allocate parameters only for feature-encoding qubits
         self.params = nn.Parameter(
-            torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
+            torch.randn(num_layers, self.n_feature_qubits, dtype=torch.float32)
         )
 
     def _first_n_probs(self, angles, n):
@@ -143,7 +144,8 @@ class QuantumLLPModel(nn.Module):
             if self.use_circuit:
                 full_probs = CircuitProbFunction.apply(self.params, angles, self.entangling)
             else:
-                ang = np.pi * angles + self.params[0]
+                ang = np.pi * angles
+                ang[: self.n_feature_qubits] += self.params[0]
                 if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
                     full_probs = self._first_n_probs(ang, NUM_CLASSES)
                     probs = full_probs
