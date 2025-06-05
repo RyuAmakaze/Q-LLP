@@ -145,7 +145,6 @@ class QuantumLLPModel(nn.Module):
                 full_probs = CircuitProbFunction.apply(self.params, angles, self.entangling)
             else:
                 ang = np.pi * angles
-                ang[: self.n_feature_qubits] += self.params[0]
                 if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
                     full_probs = self._first_n_probs(ang, NUM_CLASSES)
                     probs = full_probs

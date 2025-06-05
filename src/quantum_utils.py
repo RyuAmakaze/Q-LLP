@@ -58,11 +58,12 @@ def data_to_circuit(angles, params=None, entangling=False):
         angles = np.array(angles, dtype=float)
     n_qubits = angles.shape[0]
 
-    # Backwards compatible path: single parameter vector without entanglement
+    # When no entanglement is used a single RZ layer after the initial RY
+    # encoding has no effect on measured probabilities, so parameters are
+    # ignored in this special case.
     if params is not None and not entangling and np.ndim(params) == 1:
         if torch.is_tensor(params):
             params = params.detach().cpu().numpy()
-        angles = angles + np.array(params, dtype=float)
         qc = QuantumCircuit(n_qubits)
         for i, theta in enumerate(angles):
             qc.ry(float(theta), i)
@@ -78,11 +79,11 @@ def data_to_circuit(angles, params=None, entangling=False):
         params = np.array(params, dtype=float)
         params = np.atleast_2d(params)
         for layer in params:
-            for q, theta in enumerate(layer):
-                qc.rz(float(theta), q)
             if entangling and n_qubits > 1:
                 for q in range(n_qubits - 1):
                     qc.cx(q, q + 1)
+            for q, theta in enumerate(layer):
+                qc.rz(float(theta), q)
     return qc
 
 
