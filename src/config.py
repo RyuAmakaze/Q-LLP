@@ -6,7 +6,7 @@ import os
 DATA_ROOT = "./data"
 SUBSET_SIZE = 60
 TEST_SUBSET_SIZE = 60
-BAG_SIZE = 100  # number of samples per bag
+BAG_SIZE = 1  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 384
 USE_DINO = True  # whether to encode images using DINOv2 features
