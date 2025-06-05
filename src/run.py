@@ -126,13 +126,15 @@ def main() -> None:
             x_batch = x_batch.to(DEVICE, non_blocking=PIN_MEMORY)
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
-            bag_true = compute_proportions(y_batch, NUM_CLASSES)
+            out_dim = 2 ** NUM_OUTPUT_QUBITS if NUM_OUTPUT_QUBITS > 0 else NUM_CLASSES
+            bag_true = compute_proportions(y_batch, out_dim)
             print(f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().numpy()}")
             print(f"Test batch {i+1} true class proportions: {bag_true.numpy()}")
             if i >= 1:  # limit output for brevity
                 break
 
-    metrics = evaluate_model(model, test_loader, NUM_CLASSES, device=DEVICE)
+    out_dim = 2 ** NUM_OUTPUT_QUBITS if NUM_OUTPUT_QUBITS > 0 else NUM_CLASSES
+    metrics = evaluate_model(model, test_loader, out_dim, device=DEVICE)
     print("Evaluation on test set:", metrics)
 
 if __name__ == "__main__":

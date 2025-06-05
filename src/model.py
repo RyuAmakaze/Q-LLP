@@ -116,7 +116,7 @@ class QuantumLLPModel(nn.Module):
         p0 = p0.unsqueeze(0).expand(n, -1)
         p1 = p1.unsqueeze(0).expand(n, -1)
         probs = torch.where(patterns == 1, p1, p0).prod(dim=1)
-        return probs[:NUM_CLASSES]
+        return probs
 
     def _state_probs(self, angles):
         """Return probabilities of measuring each basis state for given angles."""
@@ -131,19 +131,19 @@ class QuantumLLPModel(nn.Module):
         return probs.to(angles.device)
 
     def _output_probs(self, full_probs):
-        """Return class probabilities from full basis state probabilities."""
+        """Return probabilities for the dedicated output qubits."""
         if self.n_output_qubits == 0:
-            return full_probs[:NUM_CLASSES]
+            return full_probs
         # When using ``CircuitProbFunction`` with ``qargs`` specified, the
         # returned probabilities already correspond to the output qubits only.
         if full_probs.numel() == 2 ** self.n_output_qubits:
-            return full_probs[:NUM_CLASSES]
+            return full_probs
 
         probs = full_probs.view(
             2 ** self.n_feature_qubits, 2 ** self.n_output_qubits
         )
         out_probs = probs.sum(dim=0)
-        return out_probs[:NUM_CLASSES]
+        return out_probs
 
     def forward(self, x_batch):
         x_batch = x_batch.to(self.params.device)
