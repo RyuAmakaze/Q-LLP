@@ -33,12 +33,16 @@ def train_model(
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 
+    output_dim = 2 ** model.n_output_qubits if model.n_output_qubits > 0 else num_classes
+    if model.n_output_qubits > 0 and output_dim < num_classes:
+        raise ValueError("output qubits cannot represent all classes")
+
     for epoch in range(epochs):
         train_sampler, teacher_probs_train = create_random_bags(
-            train_dataset, bag_size, num_classes, shuffle=shuffle
+            train_dataset, bag_size, output_dim, shuffle=shuffle
         )
         val_sampler, teacher_probs_val = create_random_bags(
-            val_dataset, bag_size, num_classes, shuffle=shuffle
+            val_dataset, bag_size, output_dim, shuffle=shuffle
         )
 
         train_loader = DataLoader(
@@ -120,6 +124,12 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
     with torch.no_grad():
         all_preds = model(x_all)
 
+    output_dim = (
+        2 ** model.n_output_qubits if getattr(model, "n_output_qubits", 0) > 0 else num_classes
+    )
+    if getattr(model, "n_output_qubits", 0) > 0 and output_dim < num_classes:
+        raise ValueError("output qubits cannot represent all classes")
+
     mse_total = 0.0
     ce_total = 0.0
     total_correct = 0
@@ -135,7 +145,7 @@ def evaluate_model(model, data_loader, num_classes, device=DEVICE):
         start += max(1, batch_size - 1)
 
         bag_pred = preds.mean(dim=0)
-        counts = torch.bincount(y_batch.cpu(), minlength=num_classes).float()
+        counts = torch.bincount(y_batch.cpu(), minlength=output_dim).float()
         bag_true = (counts / counts.sum()).to(device, dtype=bag_pred.dtype)
 
         mse_total += nn.functional.mse_loss(bag_pred, bag_true).item()
