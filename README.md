@@ -62,3 +62,6 @@ simulation is still enabled automatically when entangling layers or
 multiple parameterized layers are used. When only a single non-entangling
 layer is present, class probabilities for the output qubits are computed
 analytically for improved performance.
+When using dedicated output qubits, the training labels are converted
+to probability vectors of length `2 ** NUM_OUTPUT_QUBITS` so that the
+loss computation matches the model output.

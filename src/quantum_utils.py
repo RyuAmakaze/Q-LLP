@@ -3,6 +3,8 @@ import torch
 
 import config
 
+from typing import List, Optional
+
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 from qiskit.circuit.library import (
@@ -18,6 +20,15 @@ except Exception:  # pragma: no cover - handle version differences
         from qiskit.circuit.library import XXPlusYYGate as IsingXYGate
     except Exception:
         from qiskit.circuit.library import XYGate as IsingXYGate
+
+
+def _to_numpy(x):
+    if torch.is_tensor(x):
+        try:
+            return x.detach().cpu().numpy()
+        except Exception:  # pragma: no cover - handle missing numpy
+            return np.asarray(x.detach().cpu().tolist(), dtype=float)
+    return np.asarray(x, dtype=float)
 
 def multi_rz(qc: QuantumCircuit, qubits: list[int], theta: float):
     # CNOT チェーン
@@ -52,16 +63,12 @@ def data_to_circuit(angles, params=None, entangling=False):
     If qiskit is not installed, this function raises ``ImportError``.
     """
 
-    if torch.is_tensor(angles):
-        angles = angles.detach().cpu().numpy()
-    else:
-        angles = np.array(angles, dtype=float)
+    angles = _to_numpy(angles)
     n_qubits = angles.shape[0]
 
     # Backwards compatible path: single parameter vector without entanglement
     if params is not None and not entangling and np.ndim(params) == 1:
-        if torch.is_tensor(params):
-            params = params.detach().cpu().numpy()
+        params = _to_numpy(params)
         angles = angles + np.array(params, dtype=float)
         qc = QuantumCircuit(n_qubits)
         for i, theta in enumerate(angles):
@@ -73,9 +80,7 @@ def data_to_circuit(angles, params=None, entangling=False):
         qc.ry(float(theta), i)
 
     if params is not None:
-        if torch.is_tensor(params):
-            params = params.detach().cpu().numpy()
-        params = np.array(params, dtype=float)
+        params = _to_numpy(params)
         params = np.atleast_2d(params)
         for layer in params:
             for q, theta in enumerate(layer):
@@ -85,20 +90,72 @@ def data_to_circuit(angles, params=None, entangling=False):
                     qc.cx(q, q + 1)
     return qc
 
+def circuit_state_probs(
+    circuit: QuantumCircuit,
+    qargs: Optional[List[int]] = None,
+    shots: Optional[int] = None,
+):
+    """Simulate ``circuit`` and return measurement probabilities.
 
-def circuit_state_probs(circuit):
-    """Simulate ``circuit`` and return measurement probabilities."""
+    When CUDA and a GPU-enabled ``AerSimulator`` are available the
+    simulation is executed on the GPU for improved performance.  If the
+    GPU simulator is unavailable the function falls back to the default
+    :class:`~qiskit.quantum_info.Statevector` implementation.
+    """
 
     if circuit.num_qubits > 24:
         raise ValueError(
             f"circuit_state_probs: {circuit.num_qubits} qubits exceeds the 24 qubit limit of Statevector simulation"
         )
 
-    state = Statevector.from_instruction(circuit)
-    probs = state.probabilities()
+    if qargs is None:
+        qargs = list(range(circuit.num_qubits))
+
+    if shots is not None:
+        from qiskit_aer import AerSimulator
+        from qiskit import ClassicalRegister
+
+        circ = circuit.copy()
+        if circ.num_clbits < len(qargs):
+            circ.add_register(ClassicalRegister(len(qargs) - circ.num_clbits))
+        circ.measure(qargs, range(len(qargs)))
+        sim = AerSimulator()
+        result = sim.run(circ, shots=shots).result()
+        counts = result.get_counts()
+        probs = np.zeros(2 ** len(qargs), dtype=float)
+        for bitstr, count in counts.items():
+            idx = int(bitstr[::-1], 2)
+            probs[idx] = count / shots
+    else:
+        probs = None
+
+        if torch.cuda.is_available():
+            try:
+                from qiskit_aer import AerSimulator
+
+                sim = AerSimulator(method="statevector", device="GPU")
+                circ = circuit.copy()
+                circ.save_statevector()
+                result = sim.run(circ).result()
+                state = result.get_statevector()
+                probs = state.probabilities(qargs=qargs[::-1])
+            except Exception:
+                probs = None
+
+        if probs is None:
+            state = Statevector.from_instruction(circuit)
+            probs = state.probabilities(qargs=qargs[::-1])
+
     return torch.tensor(probs, dtype=torch.float32)
 
-def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False):
+def parameter_shift_gradients(
+    angles,
+    params,
+    shift=np.pi / 2,
+    entangling=False,
+    qargs: Optional[List[int]] = None,
+    shots: Optional[int] = None,
+):
     """Return probabilities and gradients via the parameter-shift rule.
 
     Parameters
@@ -115,20 +172,14 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
     """
 
 
-    if torch.is_tensor(angles):
-        angles = angles.detach().cpu().numpy()
-    else:
-        angles = np.array(angles, dtype=float)
+    angles = _to_numpy(angles)
 
-    if torch.is_tensor(params):
-        params = params.detach().cpu().numpy()
-    else:
-        params = np.array(params, dtype=float)
+    params = _to_numpy(params)
 
     # Backwards compatible path: single layer without entanglement
     if params.ndim == 1 and not entangling:
         base_circuit = data_to_circuit(angles, params, entangling=False)
-        base_probs = circuit_state_probs(base_circuit)
+        base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
         grads = []
         for i in range(len(params)):
@@ -136,8 +187,8 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
             shift_vec[i] = shift
             plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False)
             minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False)
-            plus_probs = circuit_state_probs(plus_circ)
-            minus_probs = circuit_state_probs(minus_circ)
+            plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
+            minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
             grads.append(grad)
         grads = torch.stack(grads, dim=0)
@@ -148,7 +199,7 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
     num_layers, n_qubits = params.shape
 
     base_circuit = data_to_circuit(angles, params, entangling=entangling)
-    base_probs = circuit_state_probs(base_circuit)
+    base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
     grads = torch.zeros(num_layers, n_qubits, base_probs.numel(), dtype=base_probs.dtype)
 
@@ -158,8 +209,8 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
             shift_mat[layer, q] = shift
             plus_circ = data_to_circuit(angles, params + shift_mat, entangling=entangling)
             minus_circ = data_to_circuit(angles, params - shift_mat, entangling=entangling)
-            plus_probs = circuit_state_probs(plus_circ)
-            minus_probs = circuit_state_probs(minus_circ)
+            plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
+            minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
             grads[layer, q] = grad
 
@@ -201,9 +252,7 @@ def adaptive_entangling_circuit(
     """
 
 
-    if torch.is_tensor(x):
-        x = x.detach().cpu().numpy()
-    x = np.array(x, dtype=float)
+    x = _to_numpy(x)
 
     if len(x) < features_per_layer:
         raise ValueError(
@@ -250,6 +299,6 @@ def adaptive_entangling_circuit(
 
     # Stage 5: global multi-qubit rotation
     global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
-    qc.append(multi_rz(global_angle, n_qubits), list(range(n_qubits)))
+    multi_rz(qc, list(range(n_qubits)), global_angle)
 
     return qc
