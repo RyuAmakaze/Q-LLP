@@ -134,8 +134,14 @@ class QuantumLLPModel(nn.Module):
         """Return class probabilities from full basis state probabilities."""
         if self.n_output_qubits == 0:
             return full_probs[:NUM_CLASSES]
+        # When using ``CircuitProbFunction`` with ``qargs`` specified, the
+        # returned probabilities already correspond to the output qubits only.
+        if full_probs.numel() == 2 ** self.n_output_qubits:
+            return full_probs[:NUM_CLASSES]
 
-        probs = full_probs.view(2 ** self.n_feature_qubits, 2 ** self.n_output_qubits)
+        probs = full_probs.view(
+            2 ** self.n_feature_qubits, 2 ** self.n_output_qubits
+        )
         out_probs = probs.sum(dim=0)
         return out_probs[:NUM_CLASSES]
 
