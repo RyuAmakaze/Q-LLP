@@ -75,7 +75,7 @@ def main() -> None:
             desc="Preloading validation subset features...",
         )
 
-    test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)
+    test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)[:TEST_SUBSET_SIZE]
     test_subset = Subset(test_dataset, test_indices)
     if PRELOAD_DATASET:
         test_subset = preload_dataset(
