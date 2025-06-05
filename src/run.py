@@ -127,8 +127,12 @@ def main() -> None:
             pred_probs = model(x_batch)
             bag_pred = pred_probs.mean(dim=0)
             bag_true = compute_proportions(y_batch, NUM_CLASSES)
-            print(f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().numpy()}")
-            print(f"Test batch {i+1} true class proportions: {bag_true.numpy()}")
+            print(
+                f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().tolist()}"
+            )
+            print(
+                f"Test batch {i+1} true class proportions: {bag_true.cpu().tolist()}"
+            )
             if i >= 1:  # limit output for brevity
                 break
 

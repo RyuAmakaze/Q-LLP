@@ -53,7 +53,7 @@ def data_to_circuit(angles, params=None, entangling=False):
     """
 
     if torch.is_tensor(angles):
-        angles = angles.detach().cpu().numpy()
+        angles = np.asarray(angles.detach().cpu().tolist(), dtype=float)
     else:
         angles = np.array(angles, dtype=float)
     n_qubits = angles.shape[0]
@@ -61,7 +61,7 @@ def data_to_circuit(angles, params=None, entangling=False):
     # Backwards compatible path: single parameter vector without entanglement
     if params is not None and not entangling and np.ndim(params) == 1:
         if torch.is_tensor(params):
-            params = params.detach().cpu().numpy()
+            params = np.asarray(params.detach().cpu().tolist(), dtype=float)
         angles = angles + np.array(params, dtype=float)
         qc = QuantumCircuit(n_qubits)
         for i, theta in enumerate(angles):
@@ -74,12 +74,12 @@ def data_to_circuit(angles, params=None, entangling=False):
 
     if params is not None:
         if torch.is_tensor(params):
-            params = params.detach().cpu().numpy()
+            params = np.asarray(params.detach().cpu().tolist(), dtype=float)
         params = np.array(params, dtype=float)
         params = np.atleast_2d(params)
         for layer in params:
             for q, theta in enumerate(layer):
-                qc.rz(float(theta), q)
+                qc.ry(float(theta), q)
             if entangling and n_qubits > 1:
                 for q in range(n_qubits - 1):
                     qc.cx(q, q + 1)
@@ -96,6 +96,11 @@ def circuit_state_probs(circuit):
 
     state = Statevector.from_instruction(circuit)
     probs = state.probabilities()
+    num_qubits = circuit.num_qubits
+    # Convert from qiskit's little-endian ordering to the big-endian
+    # convention used by the PyTorch implementation.
+    indices = [int(format(i, f"0{num_qubits}b")[::-1], 2) for i in range(2 ** num_qubits)]
+    probs = np.asarray(probs)[indices]
     return torch.tensor(probs, dtype=torch.float32)
 
 def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False):
@@ -116,12 +121,12 @@ def parameter_shift_gradients(angles, params, shift=np.pi / 2, entangling=False)
 
 
     if torch.is_tensor(angles):
-        angles = angles.detach().cpu().numpy()
+        angles = np.asarray(angles.detach().cpu().tolist(), dtype=float)
     else:
         angles = np.array(angles, dtype=float)
 
     if torch.is_tensor(params):
-        params = params.detach().cpu().numpy()
+        params = np.asarray(params.detach().cpu().tolist(), dtype=float)
     else:
         params = np.array(params, dtype=float)
 
@@ -202,8 +207,9 @@ def adaptive_entangling_circuit(
 
 
     if torch.is_tensor(x):
-        x = x.detach().cpu().numpy()
-    x = np.array(x, dtype=float)
+        x = np.asarray(x.detach().cpu().tolist(), dtype=float)
+    else:
+        x = np.array(x, dtype=float)
 
     if len(x) < features_per_layer:
         raise ValueError(
@@ -250,6 +256,6 @@ def adaptive_entangling_circuit(
 
     # Stage 5: global multi-qubit rotation
     global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
-    qc.append(multi_rz(global_angle, n_qubits), list(range(n_qubits)))
+    multi_rz(qc, list(range(n_qubits)), global_angle)
 
     return qc
