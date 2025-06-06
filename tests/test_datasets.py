@@ -23,6 +23,8 @@ def test_transform_output_size():
     transform = get_transform()
     x = torch.randn(3, 32, 32)
     out = transform(x)
+    print("Output shape:", out.shape)
+    print("Expected shape:", config.ENCODING_DIM)
     assert out.shape[0] == config.ENCODING_DIM
 
 
