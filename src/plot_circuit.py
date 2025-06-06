@@ -22,7 +22,12 @@ def main(model_path: str, output: str | None) -> None:
     model = load_model(model_path)
 
     angles = torch.zeros(NUM_QUBITS + NUM_OUTPUT_QUBITS)
-    circuit = data_to_circuit(angles, model.params.detach(), entangling=model.entangling)
+    circuit = data_to_circuit(
+        angles,
+        model.params.detach(),
+        entangling=model.entangling,
+        n_output_qubits=NUM_OUTPUT_QUBITS,
+    )
 
     if output:
         circuit.draw(output="mpl", filename=output)
