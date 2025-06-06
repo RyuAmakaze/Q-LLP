@@ -1,5 +1,5 @@
 # Q-LLP
-Quantum Learning from Label Proportion
+Quantum Learning from Label  Proportion
 
 ## 実行方法
 1. 任意で仮想環境を作成します。
