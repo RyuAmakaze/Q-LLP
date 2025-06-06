@@ -5,7 +5,7 @@ import config
 
 from typing import List, Optional
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit.quantum_info import Statevector
 from qiskit.circuit.library import (
     CRXGate,
@@ -127,6 +127,7 @@ def circuit_state_probs(
             circ.add_register(ClassicalRegister(len(qargs) - circ.num_clbits))
         circ.measure(qargs, range(len(qargs)))
         sim = AerSimulator()
+        circ = transpile(circ, backend=sim)
         result = sim.run(circ, shots=shots).result()
         counts = result.get_counts()
         probs = np.zeros(2 ** len(qargs), dtype=float)
@@ -143,6 +144,7 @@ def circuit_state_probs(
                 sim = AerSimulator(method="statevector", device="GPU")
                 circ = circuit.copy()
                 circ.save_statevector()
+                circ = transpile(circ, backend=sim)
                 result = sim.run(circ).result()
                 state = result.get_statevector()
                 probs = state.probabilities(qargs=qargs[::-1])
