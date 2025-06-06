@@ -15,10 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2  # リポジトリコードをチェックアウト
 
-      - name: Set up Docker with GPU support
+      - name: Set up Docker with NVIDIA GPU support
         run: |
+          # NVIDIAのパッケージリポジトリを追加
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | sudo tee /etc/apt/keyrings/nvidia.asc
+          sudo distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
+            && curl -fsSL https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+            sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+          # 必要なパッケージをインストール
           sudo apt-get update
-          sudo apt-get install -y nvidia-docker2  # nvidia-dockerをインストール
+          sudo apt-get install -y nvidia-docker2
           sudo systemctl restart docker  # Dockerサービスを再起動
 
       - name: Build and run Docker container with NVIDIA GPU support
