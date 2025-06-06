@@ -1,36 +1,41 @@
-name: CI with Docker and PyTorch
+name: CI with NVIDIA Docker and PyTorch
 
 on:
-  push:
-    branches: [ main ]        # 監視するブランチを指定
   pull_request:
     branches:
       - main  # PR作成時にCIをトリガー
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # GitHub Actionsのベース環境
+    runs-on: ubuntu-latest  # GitHub Actionsのベース環境を指定（自己ホスト型ランナーを使う場合）
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2  # リポジトリコードをチェックアウト
 
-      - name: Set up Docker
-        uses: addnab/docker-run-action@v3  # Dockerコンテナを実行するためのAction
-        with:
-          image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime  # 既存のPyTorch Dockerイメージを使用
-          options: --gpus all  # GPU対応
-          run: |
-            # Dockerコンテナ内で依存関係をインストール
-            pip install --no-cache-dir \
-              qiskit==2.0.2 \
-              pytest==8.3.5 \
-              matplotlib \
-              torchvision==0.16.0 \
-              tqdm \
-              pylatexenc \
-              qiskit-aer \
-              xformers \
-              debugpy
-            # テストを実行
-            pytest  # ここでテストを実行
+      - name: Set up Docker with GPU support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nvidia-docker2  # nvidia-dockerをインストール
+          sudo systemctl restart docker  # Dockerサービスを再起動
+
+      - name: Build and run Docker container with NVIDIA GPU support
+        run: |
+          # PyTorchのDockerイメージを使用して、GPUサポートでコンテナを実行
+          sudo docker run --gpus all -it --rm \
+            -v $PWD:/workspace \
+            pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime bash -c "
+              # コンテナ内で依存関係をインストール
+              pip install --no-cache-dir \
+                qiskit==2.0.2 \
+                pytest==8.3.5 \
+                matplotlib \
+                torchvision==0.16.0 \
+                tqdm \
+                pylatexenc \
+                qiskit-aer-gpu \
+                xformers \
+                debugpy &&
+              # テストを実行
+              pytest
+            "
