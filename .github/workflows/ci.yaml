@@ -1,6 +1,8 @@
 name: CI with Docker and PyTorch
 
 on:
+  push:
+    branches: [ main ]        # 監視するブランチを指定
   pull_request:
     branches:
       - main  # PR作成時にCIをトリガー
