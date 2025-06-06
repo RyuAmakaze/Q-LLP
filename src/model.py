@@ -29,7 +29,12 @@ class CircuitProbFunction(torch.autograd.Function):
         ctx.shots = shots
         ctx.save_for_backward(params, x)
 
-        circuit = data_to_circuit(np.pi * x.cpu(), params.cpu(), entangling=entangling)
+        circuit = data_to_circuit(
+            np.pi * x.cpu(),
+            params.cpu(),
+            entangling=entangling,
+            n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+        )
         probs = circuit_state_probs(circuit, qargs=qargs, shots=shots)
         return probs.to(params.device)
 
@@ -43,6 +48,7 @@ class CircuitProbFunction(torch.autograd.Function):
             entangling=ctx.entangling,
             qargs=ctx.qargs,
             shots=ctx.shots,
+            n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
         )
         grads = grads.to(grad_output.device)
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)

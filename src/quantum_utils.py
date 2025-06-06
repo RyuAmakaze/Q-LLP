@@ -40,7 +40,7 @@ def multi_rz(qc: QuantumCircuit, qubits: list[int], theta: float):
     for i in reversed(range(len(qubits) - 1)):
         qc.cx(qubits[i], qubits[i + 1])
 
-def data_to_circuit(angles, params=None, entangling=False):
+def data_to_circuit(angles, params=None, entangling=False, n_output_qubits=0):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
 
     Parameters
@@ -57,6 +57,10 @@ def data_to_circuit(angles, params=None, entangling=False):
     entangling : bool, optional
         If ``True`` a chain of ``CX`` gates is inserted after each
         parameterized layer to introduce entanglement.
+    n_output_qubits : int, optional
+        Number of dedicated output qubits placed at the end of the register.
+        ``RY`` and the first layer of ``RZ`` rotations are skipped for these
+        qubits.
 
     Notes
     -----
@@ -65,25 +69,28 @@ def data_to_circuit(angles, params=None, entangling=False):
 
     angles = _to_numpy(angles)
     n_qubits = angles.shape[0]
+    feature_qubits = n_qubits - int(n_output_qubits)
 
     # Backwards compatible path: single parameter vector without entanglement
     if params is not None and not entangling and np.ndim(params) == 1:
         params = _to_numpy(params)
         angles = angles + np.array(params, dtype=float)
         qc = QuantumCircuit(n_qubits)
-        for i, theta in enumerate(angles):
+        for i, theta in enumerate(angles[:feature_qubits]):
             qc.ry(float(theta), i)
         return qc
 
     qc = QuantumCircuit(n_qubits)
-    for i, theta in enumerate(angles):
+    for i, theta in enumerate(angles[:feature_qubits]):
         qc.ry(float(theta), i)
 
     if params is not None:
         params = _to_numpy(params)
         params = np.atleast_2d(params)
-        for layer in params:
+        for layer_idx, layer in enumerate(params):
             for q, theta in enumerate(layer):
+                if layer_idx == 0 and q >= feature_qubits:
+                    continue
                 qc.rz(float(theta), q)
             if entangling and n_qubits > 1:
                 for q in range(n_qubits - 1):
@@ -155,6 +162,7 @@ def parameter_shift_gradients(
     entangling=False,
     qargs: Optional[List[int]] = None,
     shots: Optional[int] = None,
+    n_output_qubits: int = 0,
 ):
     """Return probabilities and gradients via the parameter-shift rule.
 
@@ -169,6 +177,9 @@ def parameter_shift_gradients(
         Shift amount for the parameter-shift rule (default: ``π/2``).
     entangling : bool, optional
         If ``True`` entangling ``CX`` gates are inserted between layers.
+    n_output_qubits : int, optional
+        Number of dedicated output qubits to exclude from the first layer
+        rotations.
     """
 
 
@@ -178,15 +189,15 @@ def parameter_shift_gradients(
 
     # Backwards compatible path: single layer without entanglement
     if params.ndim == 1 and not entangling:
-        base_circuit = data_to_circuit(angles, params, entangling=False)
+        base_circuit = data_to_circuit(angles, params, entangling=False, n_output_qubits=n_output_qubits)
         base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
         grads = []
         for i in range(len(params)):
             shift_vec = np.zeros_like(params)
             shift_vec[i] = shift
-            plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False)
-            minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False)
+            plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False, n_output_qubits=n_output_qubits)
+            minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False, n_output_qubits=n_output_qubits)
             plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
             minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
@@ -198,7 +209,7 @@ def parameter_shift_gradients(
     params = np.atleast_2d(params)
     num_layers, n_qubits = params.shape
 
-    base_circuit = data_to_circuit(angles, params, entangling=entangling)
+    base_circuit = data_to_circuit(angles, params, entangling=entangling, n_output_qubits=n_output_qubits)
     base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
     grads = torch.zeros(num_layers, n_qubits, base_probs.numel(), dtype=base_probs.dtype)
@@ -207,8 +218,18 @@ def parameter_shift_gradients(
         for q in range(n_qubits):
             shift_mat = np.zeros_like(params)
             shift_mat[layer, q] = shift
-            plus_circ = data_to_circuit(angles, params + shift_mat, entangling=entangling)
-            minus_circ = data_to_circuit(angles, params - shift_mat, entangling=entangling)
+            plus_circ = data_to_circuit(
+                angles,
+                params + shift_mat,
+                entangling=entangling,
+                n_output_qubits=n_output_qubits,
+            )
+            minus_circ = data_to_circuit(
+                angles,
+                params - shift_mat,
+                entangling=entangling,
+                n_output_qubits=n_output_qubits,
+            )
             plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
             minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
