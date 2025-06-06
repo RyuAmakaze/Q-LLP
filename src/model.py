@@ -5,6 +5,7 @@ from config import NUM_CLASSES
 import config
 from quantum_utils import (
     data_to_circuit,
+    adaptive_data_to_circuit,
     circuit_state_probs,
     parameter_shift_gradients,
     QuantumCircuit,
@@ -23,25 +24,46 @@ class CircuitProbFunction(torch.autograd.Function):
     """Autograd function for differentiable circuit simulation."""
 
     @staticmethod
-    def forward(ctx, params, x, entangling=False, qargs=None, shots=None):
+    def forward(
+        ctx,
+        params,
+        x,
+        entangling=False,
+        qargs=None,
+        shots=None,
+        adaptive=False,
+        features_per_layer=config.FEATURES_PER_LAYER,
+    ):
         ctx.entangling = entangling
         ctx.qargs = qargs
         ctx.shots = shots
+        ctx.adaptive = adaptive
+        ctx.features_per_layer = features_per_layer
         ctx.save_for_backward(params, x)
 
-        circuit = data_to_circuit(
-            np.pi * x.cpu(),
-            params.cpu(),
-            entangling=entangling,
-            n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
-        )
+        if adaptive:
+            circuit = adaptive_data_to_circuit(
+                x.cpu(),
+                params.cpu(),
+                entangling=entangling,
+                n_qubits=params.shape[-1],
+                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+                features_per_layer=features_per_layer,
+            )
+        else:
+            circuit = data_to_circuit(
+                np.pi * x.cpu(),
+                params.cpu(),
+                entangling=entangling,
+                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+            )
         probs = circuit_state_probs(circuit, qargs=qargs, shots=shots)
         return probs.to(params.device)
 
     @staticmethod
     def backward(ctx, grad_output):
         params, x = ctx.saved_tensors
-        angles = np.pi * x.cpu()
+        angles = x.cpu() if ctx.adaptive else np.pi * x.cpu()
         _, grads = parameter_shift_gradients(
             angles,
             params.cpu(),
@@ -49,13 +71,31 @@ class CircuitProbFunction(torch.autograd.Function):
             qargs=ctx.qargs,
             shots=ctx.shots,
             n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+            adaptive=ctx.adaptive,
+            features_per_layer=ctx.features_per_layer,
         )
         grads = grads.to(grad_output.device)
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
-        return grad_params.to(params.device), None, None, None, None
+        return (
+            grad_params.to(params.device),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 class QuantumLLPModel(nn.Module):
-    def __init__(self, n_qubits, num_layers=1, use_circuit=False, entangling=False, n_output_qubits=0):
+    def __init__(
+        self,
+        n_qubits,
+        num_layers=1,
+        use_circuit=False,
+        entangling=False,
+        n_output_qubits=0,
+        adaptive=False,
+    ):
         """Quantum LLP model supporting optional deep entangling circuits.
 
         Parameters
@@ -78,6 +118,9 @@ class QuantumLLPModel(nn.Module):
         entangling : bool, optional
             If ``True`` a chain of ``CX`` gates is inserted after each
             parameterized layer.
+        adaptive : bool, optional
+            If ``True`` input features are encoded using
+            :func:`quantum_utils.adaptive_entangling_circuit`.
         """
 
         super().__init__()
@@ -86,7 +129,9 @@ class QuantumLLPModel(nn.Module):
         self.n_qubits = n_qubits + n_output_qubits
         self.num_layers = num_layers
         self.entangling = entangling
-        self.use_circuit = use_circuit or num_layers > 1 or entangling
+        self.adaptive = adaptive
+        self.features_per_layer = config.FEATURES_PER_LAYER
+        self.use_circuit = use_circuit or num_layers > 1 or entangling or adaptive
         self.params = nn.Parameter(
             torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
         )
@@ -155,11 +200,14 @@ class QuantumLLPModel(nn.Module):
         x_batch = x_batch.to(self.params.device)
         probs_batch = []
         for x in x_batch:
-            if x.shape[0] != self.n_feature_qubits:
-                x = x[: self.n_feature_qubits]
+            if self.adaptive:
+                features = x[: self.features_per_layer]
+            else:
+                if x.shape[0] != self.n_feature_qubits:
+                    x = x[: self.n_feature_qubits]
 
-            angles = torch.zeros(self.n_qubits, device=x.device, dtype=x.dtype)
-            angles[: self.n_feature_qubits] = x
+                angles = torch.zeros(self.n_qubits, device=x.device, dtype=x.dtype)
+                angles[: self.n_feature_qubits] = x
 
             if self.use_circuit:
                 if self.n_output_qubits > 0:
@@ -167,9 +215,20 @@ class QuantumLLPModel(nn.Module):
                 else:
                     qargs = None
                 shots = getattr(config, "MEASURE_SHOTS", None)
-                full_probs = CircuitProbFunction.apply(
-                    self.params, angles, self.entangling, qargs, shots
-                )
+                if self.adaptive:
+                    full_probs = CircuitProbFunction.apply(
+                        self.params,
+                        features,
+                        self.entangling,
+                        qargs,
+                        shots,
+                        True,
+                        self.features_per_layer,
+                    )
+                else:
+                    full_probs = CircuitProbFunction.apply(
+                        self.params, angles, self.entangling, qargs, shots
+                    )
             else:
                 ang = np.pi * angles + self.params[0]
                 if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:

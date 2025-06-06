@@ -5,7 +5,7 @@ import config
 
 from typing import List, Optional
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit.quantum_info import Statevector
 from qiskit.circuit.library import (
     CRXGate,
@@ -127,6 +127,7 @@ def circuit_state_probs(
             circ.add_register(ClassicalRegister(len(qargs) - circ.num_clbits))
         circ.measure(qargs, range(len(qargs)))
         sim = AerSimulator()
+        circ = transpile(circ, backend=sim)
         result = sim.run(circ, shots=shots).result()
         counts = result.get_counts()
         probs = np.zeros(2 ** len(qargs), dtype=float)
@@ -143,6 +144,7 @@ def circuit_state_probs(
                 sim = AerSimulator(method="statevector", device="GPU")
                 circ = circuit.copy()
                 circ.save_statevector()
+                circ = transpile(circ, backend=sim)
                 result = sim.run(circ).result()
                 state = result.get_statevector()
                 probs = state.probabilities(qargs=qargs[::-1])
@@ -155,6 +157,45 @@ def circuit_state_probs(
 
     return torch.tensor(probs, dtype=torch.float32)
 
+def adaptive_data_to_circuit(
+    x,
+    params=None,
+    *,
+    n_qubits=config.NUM_QUBITS,
+    features_per_layer=config.FEATURES_PER_LAYER,
+    entangling=False,
+    n_output_qubits: int = 0,
+    lambdas=None,
+    gamma=1.0,
+    delta=1.0,
+):
+    """Return circuit with adaptive entangling encoding followed by parameter layers."""
+
+    qc = adaptive_entangling_circuit(
+        x,
+        n_qubits=n_qubits,
+        features_per_layer=features_per_layer,
+        lambdas=lambdas,
+        gamma=gamma,
+        delta=delta,
+        n_output_qubits=n_output_qubits,
+    )
+
+    if params is not None:
+        params = _to_numpy(params)
+        params = np.atleast_2d(params)
+        feature_qubits = n_qubits - int(n_output_qubits)
+        for layer_idx, layer in enumerate(params):
+            for q, theta in enumerate(layer):
+                if layer_idx == 0 and q >= feature_qubits:
+                    continue
+                qc.rz(float(theta), q)
+            if entangling and n_qubits > 1:
+                for q in range(n_qubits - 1):
+                    qc.cx(q, q + 1)
+
+    return qc
+
 def parameter_shift_gradients(
     angles,
     params,
@@ -163,6 +204,12 @@ def parameter_shift_gradients(
     qargs: Optional[List[int]] = None,
     shots: Optional[int] = None,
     n_output_qubits: int = 0,
+    *,
+    adaptive: bool = False,
+    features_per_layer: int = config.FEATURES_PER_LAYER,
+    lambdas=None,
+    gamma: float = 1.0,
+    delta: float = 1.0,
 ):
     """Return probabilities and gradients via the parameter-shift rule.
 
@@ -189,15 +236,67 @@ def parameter_shift_gradients(
 
     # Backwards compatible path: single layer without entanglement
     if params.ndim == 1 and not entangling:
-        base_circuit = data_to_circuit(angles, params, entangling=False, n_output_qubits=n_output_qubits)
+        if adaptive:
+            base_circuit = adaptive_data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_qubits=params.shape[-1],
+                n_output_qubits=n_output_qubits,
+                features_per_layer=features_per_layer,
+                lambdas=lambdas,
+                gamma=gamma,
+                delta=delta,
+            )
+        else:
+            base_circuit = data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_output_qubits=n_output_qubits,
+            )
         base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
         grads = []
         for i in range(len(params)):
             shift_vec = np.zeros_like(params)
             shift_vec[i] = shift
-            plus_circ = data_to_circuit(angles, params + shift_vec, entangling=False, n_output_qubits=n_output_qubits)
-            minus_circ = data_to_circuit(angles, params - shift_vec, entangling=False, n_output_qubits=n_output_qubits)
+            if adaptive:
+                plus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params + shift_vec,
+                    entangling=False,
+                    n_qubits=params.shape[-1],
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+                minus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params - shift_vec,
+                    entangling=False,
+                    n_qubits=params.shape[-1],
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+            else:
+                plus_circ = data_to_circuit(
+                    angles,
+                    params + shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = data_to_circuit(
+                    angles,
+                    params - shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
             plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
             minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
@@ -209,7 +308,25 @@ def parameter_shift_gradients(
     params = np.atleast_2d(params)
     num_layers, n_qubits = params.shape
 
-    base_circuit = data_to_circuit(angles, params, entangling=entangling, n_output_qubits=n_output_qubits)
+    if adaptive:
+        base_circuit = adaptive_data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_qubits=n_qubits,
+            n_output_qubits=n_output_qubits,
+            features_per_layer=features_per_layer,
+            lambdas=lambdas,
+            gamma=gamma,
+            delta=delta,
+        )
+    else:
+        base_circuit = data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_output_qubits=n_output_qubits,
+        )
     base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
 
     grads = torch.zeros(num_layers, n_qubits, base_probs.numel(), dtype=base_probs.dtype)
@@ -218,18 +335,42 @@ def parameter_shift_gradients(
         for q in range(n_qubits):
             shift_mat = np.zeros_like(params)
             shift_mat[layer, q] = shift
-            plus_circ = data_to_circuit(
-                angles,
-                params + shift_mat,
-                entangling=entangling,
-                n_output_qubits=n_output_qubits,
-            )
-            minus_circ = data_to_circuit(
-                angles,
-                params - shift_mat,
-                entangling=entangling,
-                n_output_qubits=n_output_qubits,
-            )
+            if adaptive:
+                plus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_qubits=n_qubits,
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+                minus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_qubits=n_qubits,
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+            else:
+                plus_circ = data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
             plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
             minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
@@ -246,6 +387,7 @@ def adaptive_entangling_circuit(
     lambdas=None,
     gamma=1.0,
     delta=1.0,
+    n_output_qubits: int = 0,
 ):
     """Return a multi-stage entangling circuit for ``x``.
 
@@ -285,41 +427,43 @@ def adaptive_entangling_circuit(
     else:
         lambdas = np.asarray(lambdas, dtype=float)
 
+    feature_qubits = n_qubits - int(n_output_qubits)
+
     qc = QuantumCircuit(n_qubits)
 
     # Stage 0: local encoding
-    for j in range(n_qubits):
+    for j in range(feature_qubits):
         angle = np.pi * x[j]
         qc.ry(float(angle), j)
 
     # Stage 1: immediate neighbor entanglement
-    for j in range(n_qubits):
+    for j in range(feature_qubits):
         x_a = x[j]
-        x_b = x[(j + 1) % n_qubits]
+        x_b = x[(j + 1) % feature_qubits]
         angle = np.pi * (0.5 * x_a + 0.5 * x_b + 0.1 * (x_a - x_b))
-        qc.append(CRXGate(angle), [j, (j + 1) % n_qubits])
+        qc.append(CRXGate(angle), [j, (j + 1) % feature_qubits])
 
     # Stage 2: next-nearest neighbor correlations
-    for j in range(n_qubits):
-        vals = [x[j], x[(j + 1) % n_qubits], x[(j + 2) % n_qubits]]
+    for j in range(feature_qubits):
+        vals = [x[j], x[(j + 1) % feature_qubits], x[(j + 2) % feature_qubits]]
         angle = np.pi * float(np.mean(vals))
-        qc.append(CRYGate(angle), [j, (j + 2) % n_qubits])
+        qc.append(CRYGate(angle), [j, (j + 2) % feature_qubits])
 
     # Stage 3: adaptive CRot with layer-dependent scaling
-    for j in range(n_qubits):
+    for j in range(feature_qubits):
         x_a = x[j]
-        x_b = x[(j + 1) % n_qubits]
+        x_b = x[(j + 1) % feature_qubits]
         scale = lambdas[j % len(lambdas)]
         angle = np.pi * scale * 0.5 * (x_a + x_b)
-        qc.append(CU3Gate(angle, 0.0, 0.0), [j, (j + 3) % n_qubits])
+        qc.append(CU3Gate(angle, 0.0, 0.0), [j, (j + 3) % feature_qubits])
 
     # Stage 4: long-range entanglement via IsingXY-like coupling
-    half = n_qubits // 2
+    half = feature_qubits // 2
     for j in range(half):
         qc.append(IsingXYGate(np.pi * gamma), [j, j + half])
 
     # Stage 5: global multi-qubit rotation
     global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
-    multi_rz(qc, list(range(n_qubits)), global_angle)
+    multi_rz(qc, list(range(feature_qubits)), global_angle)
 
     return qc
