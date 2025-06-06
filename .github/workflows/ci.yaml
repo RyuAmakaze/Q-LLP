@@ -2,43 +2,39 @@ name: CI with NVIDIA Docker and PyTorch
 
 on:
   push:
-    branches: [ main ]        # 監視するブランチを指定
+    branches: [ main ]
   pull_request:
     branches:
-      - main  # PR作成時にCIをトリガー
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # GitHub Actionsのベース環境を指定（自己ホスト型ランナーを使う場合）
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2  # リポジトリコードをチェックアウト
+        uses: actions/checkout@v2
 
       - name: Set up Docker with NVIDIA GPU support
         run: |
-          # NVIDIAのパッケージリポジトリを追加
           sudo mkdir -p /etc/apt/keyrings
           curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | sudo tee /etc/apt/keyrings/nvidia.asc
           sudo distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
             && curl -fsSL https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
             sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-
-          # 必要なパッケージをインストール
           sudo apt-get update
           sudo apt-get install -y nvidia-docker2
-          sudo systemctl restart docker  # Dockerサービスを再起動
+          sudo systemctl restart docker
 
       - name: Build and run Docker container with NVIDIA GPU support
         run: |
-          # PyTorchのDockerイメージを使用して、GPUサポートでコンテナを実行
           sudo docker run --gpus all -it --rm \
             -v $PWD:/workspace \
             pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime bash -c "
-              # コンテナ内で依存関係をインストール
               pip install --no-cache-dir \
                 qiskit==2.0.2 \
                 pytest==8.3.5 \
+                pytest-xdist \
                 matplotlib \
                 torchvision==0.16.0 \
                 tqdm \
@@ -46,6 +42,5 @@ jobs:
                 qiskit-aer-gpu \
                 xformers \
                 debugpy &&
-              # テストを実行
-              pytest
+              pytest -n auto  # 並列テストを実行
             "
