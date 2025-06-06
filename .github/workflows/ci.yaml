@@ -1,28 +1,34 @@
-# .github/workflows/ci.yml
-name: CI
+name: CI with Docker and PyTorch
 
 on:
-  push:
-    branches: [ main ]        # 監視するブランチを指定
   pull_request:
+    branches:
+      - main  # PR作成時にCIをトリガー
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest  # GitHub Actionsのベース環境
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v2  # リポジトリコードをチェックアウト
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Docker
+        uses: addnab/docker-run-action@v3  # Dockerコンテナを実行するためのAction
         with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch torchvision qiskit pytest tqdm debugpy xformers pylatexenc qiskit-aer-gpu
-
-      - name: Run tests
-        run: pytest
+          image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime  # 既存のPyTorch Dockerイメージを使用
+          options: --gpus all  # GPU対応
+          run: |
+            # Dockerコンテナ内で依存関係をインストール
+            pip install --no-cache-dir \
+              qiskit==2.0.2 \
+              pytest==8.3.5 \
+              matplotlib \
+              torchvision==0.16.0 \
+              tqdm \
+              pylatexenc \
+              qiskit-aer-gpu \
+              xformers \
+              debugpy
+            # テストを実行
+            pytest  # ここでテストを実行
