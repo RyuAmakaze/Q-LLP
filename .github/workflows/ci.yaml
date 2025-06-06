@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install torch torchvision qiskit pytest
+          pip install torch torchvision qiskit pytest tqdm debugpy xformers pylatexenc qiskit-aer-gpu
 
       - name: Run tests
         run: pytest
