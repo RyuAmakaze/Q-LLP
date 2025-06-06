@@ -19,12 +19,11 @@ def test_get_dataset_class_cifar100():
     assert get_dataset_class("CIFAR100") is datasets.CIFAR100
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires CUDA for DINOv2/xFormers attention")
 def test_transform_output_size():
     transform = get_transform()
     x = torch.randn(3, 32, 32)
     out = transform(x)
-    print("Output shape:", out.shape)
-    print("Expected shape:", config.ENCODING_DIM)
     assert out.shape[0] == config.ENCODING_DIM
 
 
