@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader, Subset, random_split
 import torch.multiprocessing as mp
-
+from tqdm import tqdm
 
 def main() -> None:
     """Entry point for training and evaluation."""
@@ -20,6 +20,7 @@ def main() -> None:
     from config import (
         DATA_ROOT,
         SUBSET_SIZE,
+        TEST_SUBSET_SIZE,
         BAG_SIZE,
         SHUFFLE_DATA,
         DATASET,
@@ -42,6 +43,7 @@ def main() -> None:
     print(f"Using dataset: {DATASET}")
     print(f"Number of classes: {NUM_CLASSES}")
     print("DEVICE", DEVICE)
+    print("NUM_QUBITS,NUM_OUTPUT_QUBITS,NUM_LAYERS",NUM_QUBITS,NUM_OUTPUT_QUBITS,NUM_LAYERS)
 
 # 1. Prepare datasets
     transform = get_transform(use_dino=USE_DINO)
@@ -102,6 +104,7 @@ def main() -> None:
         num_layers=NUM_LAYERS,
         entangling=NUM_LAYERS > 1,
         n_output_qubits=NUM_OUTPUT_QUBITS,
+        adaptive=True,
     ).to(DEVICE)
     train_model(
         model,
@@ -121,21 +124,21 @@ def main() -> None:
 
 # 5. Inference on a few test batches and evaluation
     model.eval()
-    with torch.no_grad():
-        for i, (x_batch, y_batch) in enumerate(test_loader):
-            x_batch = x_batch.to(DEVICE, non_blocking=PIN_MEMORY)
-            pred_probs = model(x_batch)
-            bag_pred = pred_probs.mean(dim=0)
-            out_dim = 2 ** NUM_OUTPUT_QUBITS if NUM_OUTPUT_QUBITS > 0 else NUM_CLASSES
-            bag_true = compute_proportions(y_batch, out_dim)
-            print(f"Test batch {i+1} predicted class proportions: {bag_pred.cpu().numpy()}")
-            print(f"Test batch {i+1} true class proportions: {bag_true.numpy()}")
-            if i >= 1:  # limit output for brevity
-                break
-
-    out_dim = 2 ** NUM_OUTPUT_QUBITS if NUM_OUTPUT_QUBITS > 0 else NUM_CLASSES
-    metrics = evaluate_model(model, test_loader, out_dim, device=DEVICE)
+    metrics = evaluate_model(model, test_loader, NUM_CLASSES, device=DEVICE)
     print("Evaluation on test set:", metrics)
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    import debugpy
+    import os
+
+    load_dotenv()
+
+    if os.getenv("DEBUGPY_STARTED") != "1":
+        os.environ["DEBUGPY_STARTED"] = "1"
+        port = int(os.getenv("DEBUG_PORT", 5678))
+        print(f"🔍 Waiting for debugger attach on port {port}...")
+        debugpy.listen(("0.0.0.0", port))
+        debugpy.wait_for_client()
+
     main()
