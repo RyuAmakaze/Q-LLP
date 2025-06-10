@@ -30,7 +30,7 @@ NUM_QUBITS = 10 # <24 number of feature-encoding qubits
 # Optional dedicated output qubits.  When non-zero, ``NUM_QUBITS`` only
 # specifies the number of qubits used for encoding input features.
 NUM_OUTPUT_QUBITS = 2
-FEATURES_PER_LAYER = 12  # >NUM_QUBITS inputs consumed by adaptive_entangling_circuit
+FEATURES_PER_LAYER = 12  # >NUM_QUBITS, <SUBSET_SIZE inputs consumed by adaptive_entangling_circuit
 NUM_LAYERS = 6  # number of parameterized layers in the quantum circuit
 NUM_CLASSES = 4
 MEASURE_SHOTS = 100
