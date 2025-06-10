@@ -53,7 +53,7 @@ NUM_QUBITS = 6
 NUM_OUTPUT_QUBITS = 4
 # Inputs consumed by adaptive_entangling_circuit
 FEATURES_PER_LAYER = 12
-# Number of parameterized layers in the quantum circuit
+# >NUM_QUBITS Number of parameterized layers in the quantum circuit
 NUM_LAYERS = 5
 # Number of prediction classes
 NUM_CLASSES = 10
