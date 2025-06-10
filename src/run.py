@@ -27,6 +27,7 @@ def main() -> None:
         VAL_SPLIT,
         NUM_QUBITS,
         NUM_OUTPUT_QUBITS,
+        FEATURES_PER_LAYER,
         NUM_LAYERS,
         RUN_EPOCHS,
         RUN_LR,
