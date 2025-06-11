@@ -294,8 +294,14 @@ def create_random_bags(dataset, bag_size, num_classes, shuffle=True):
     return sampler, teacher_tensor
 
 
-def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "Preloading dataset"):
-    """Load all features and labels into memory with progress output."""
+def preload_dataset(
+    dataset,
+    batch_size: int = PRELOAD_BATCH_SIZE,
+    desc: str = "Preloading dataset",
+    *,
+    pca_dim: int | None = None,
+) -> torch.utils.data.TensorDataset:
+    """Load all features and labels into memory with optional PCA compression."""
     from torch.utils.data import DataLoader, TensorDataset
 
     loader = DataLoader(
@@ -322,4 +328,14 @@ def preload_dataset(dataset, batch_size: int = PRELOAD_BATCH_SIZE, desc: str = "
 
     features = torch.cat(all_x)
     labels = torch.cat(all_y)
+
+    if pca_dim is not None and features.shape[1] > pca_dim:
+        mean = features.mean(dim=0)
+        centered = features - mean
+        q = min(pca_dim, min(centered.shape))
+        if q > 0:
+            _, _, v = torch.pca_lowrank(centered, q=q)
+            components = v[:, :pca_dim]
+            features = (features - mean) @ components
+
     return TensorDataset(features, labels)

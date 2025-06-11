@@ -27,6 +27,7 @@ def main() -> None:
         VAL_SPLIT,
         NUM_QUBITS,
         NUM_OUTPUT_QUBITS,
+        FEATURES_PER_LAYER,
         NUM_LAYERS,
         RUN_EPOCHS,
         RUN_LR,
@@ -70,11 +71,13 @@ def main() -> None:
             train_subset,
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading training subset features...",
+            pca_dim=FEATURES_PER_LAYER,
         )
         val_subset = preload_dataset(
             val_subset,
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading validation subset features...",
+            pca_dim=FEATURES_PER_LAYER,
         )
 
     test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)[:TEST_SUBSET_SIZE]
@@ -84,6 +87,7 @@ def main() -> None:
             test_subset,
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading test subset features...",
+            pca_dim=FEATURES_PER_LAYER,
         )
     test_loader = DataLoader(
         test_subset,
