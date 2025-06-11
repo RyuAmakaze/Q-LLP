@@ -36,16 +36,16 @@ python src/plot_circuit.py trained_quantum_llp.pt -o circuit.png
 ## Docker での実行
 1. Docker イメージをビルドします。
    ```bash
-   sudo docker build -t q-llp -f Dockerfile/Dockerfile .
+   docker build -t q-llp -f Dockerfile/Dockerfile .
    ```
 2. 作業ディレクトリをコンテナにマウントして学習を実行します。GPU を利用する場合は `--gpus all` を指定します。
    ```bash
-   sudo docker run --rm --shm-size=2g --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
+   docker run --rm --shm-size=2g --gpus all -v $(pwd):/app -w /app q-llp python src/run.py
    ```
 
 Dockerに入るだけ
 ```bash
-sudo docker run --rm --gpus all -v $(pwd):/app -w /app -it q-llp bash
+docker run --rm --gpus all -v $(pwd):/app -w /app -it q-llp bash
 ```
 
 
