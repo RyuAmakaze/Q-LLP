@@ -18,6 +18,10 @@ Quantum Learning from Label Proportion
   学習が完了すると `trained_quantum_llp.pt` が作成されます。
   CUDA が利用可能な環境では自動的に GPU を使用して計算します。
   データ読み込みのワーカー数は `config.NUM_WORKERS` で調整できます。
+ デフォルトでは利用可能な CPU コア数をそのまま使用しますが、必要に応じて
+ `config.NUM_WORKERS` を変更して制限することもできます。
+ またこの値は PyTorch のスレッド数にも反映されるため、
+ `BAG_SIZE` を 1 より大きくすると CPU 上でも並列推論が可能になります。
 GPU 利用時にワーカーを有効にするため、スクリプト冒頭で
 `torch.multiprocessing.set_start_method("spawn")` を呼び出しています。
 特徴量を事前計算してメモリに展開するには `config.PRELOAD_DATASET` を `True` に設定します。
