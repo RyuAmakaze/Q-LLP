@@ -15,7 +15,8 @@ DATASET = "CIFAR10"  # Options: MNIST, CIFAR10, CIFAR100
 VAL_SPLIT = 0.2
 
 # DataLoader settings
-NUM_WORKERS = min(4, os.cpu_count() or 1)
+# Default to using all available CPU cores for data loading
+NUM_WORKERS = os.cpu_count() or 1
 PIN_MEMORY = torch.cuda.is_available()
 
 # Dataset preloading settings

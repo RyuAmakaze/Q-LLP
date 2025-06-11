@@ -40,6 +40,9 @@ def main() -> None:
         PRELOAD_BATCH_SIZE,
     )
 
+    # Allow PyTorch to utilise multiple CPU cores for forward passes
+    torch.set_num_threads(NUM_WORKERS)
+
 # Print basic information
     print(f"Using dataset: {DATASET}")
     print(f"Number of classes: {NUM_CLASSES}")
