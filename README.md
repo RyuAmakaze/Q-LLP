@@ -62,9 +62,10 @@ parameter-shift rule.
 
 Setting `config.NUM_OUTPUT_QUBITS` to a value greater than zero adds
 additional qubits that are measured for class prediction.  When the value
-is zero, the model instead groups the highest-order qubits of the feature
-register using `ceil(log2(NUM_CLASSES))` bits to obtain class
-probabilities, so no extra qubits are required.
+is zero, the model reuses the highest-order qubits of the feature register
+using `ceil(log2(NUM_CLASSES))` bits.  These qubits are passed as `qargs`
+to the circuit simulator so that the full state does not need to be
+measured.
 Circuit simulation is still enabled automatically when entangling layers or
 multiple parameterized layers are used. When only a single non-entangling
 layer is present, class probabilities for the output qubits are computed

@@ -34,6 +34,7 @@ class CircuitProbFunction(torch.autograd.Function):
         shots=None,
         adaptive=False,
         features_per_layer=config.FEATURES_PER_LAYER,
+        n_output_qubits=0,
     ):
         ctx.entangling = entangling
         ctx.qargs = qargs
@@ -41,6 +42,7 @@ class CircuitProbFunction(torch.autograd.Function):
         ctx.adaptive = adaptive
         ctx.features_per_layer = features_per_layer
         ctx.save_for_backward(params, x)
+        ctx.n_output_qubits = n_output_qubits
 
         if adaptive:
             circuit = adaptive_data_to_circuit(
@@ -48,7 +50,7 @@ class CircuitProbFunction(torch.autograd.Function):
                 params.cpu(),
                 entangling=entangling,
                 n_qubits=params.shape[-1],
-                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+                n_output_qubits=n_output_qubits,
                 features_per_layer=features_per_layer,
             )
         else:
@@ -56,7 +58,7 @@ class CircuitProbFunction(torch.autograd.Function):
                 np.pi * x.cpu(),
                 params.cpu(),
                 entangling=entangling,
-                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+                n_output_qubits=n_output_qubits,
             )
         probs = circuit_state_probs(circuit, qargs=qargs, shots=shots)
         return probs.to(params.device)
@@ -71,7 +73,7 @@ class CircuitProbFunction(torch.autograd.Function):
             entangling=ctx.entangling,
             qargs=ctx.qargs,
             shots=ctx.shots,
-            n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+            n_output_qubits=ctx.n_output_qubits,
             adaptive=ctx.adaptive,
             features_per_layer=ctx.features_per_layer,
         )
@@ -79,6 +81,7 @@ class CircuitProbFunction(torch.autograd.Function):
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
         return (
             grad_params.to(params.device),
+            None,
             None,
             None,
             None,
@@ -187,6 +190,8 @@ class QuantumLLPModel(nn.Module):
         """Return probabilities for the dedicated output qubits."""
         if self.n_output_qubits == 0:
             k = self.class_bits
+            if full_probs.numel() == 2 ** k:
+                return full_probs[: NUM_CLASSES]
             if k == 0:
                 return full_probs[: NUM_CLASSES]
             probs = full_probs.view(2 ** k, 2 ** (self.n_qubits - k))
@@ -219,6 +224,8 @@ class QuantumLLPModel(nn.Module):
             if self.use_circuit:
                 if self.n_output_qubits > 0:
                     qargs = list(range(self.n_feature_qubits, self.n_qubits))
+                elif self.class_bits > 0:
+                    qargs = list(range(self.n_qubits - self.class_bits, self.n_qubits))
                 else:
                     qargs = None
                 shots = getattr(config, "MEASURE_SHOTS", None)
@@ -231,10 +238,18 @@ class QuantumLLPModel(nn.Module):
                         shots,
                         True,
                         self.features_per_layer,
+                        self.n_output_qubits,
                     )
                 else:
                     full_probs = CircuitProbFunction.apply(
-                        self.params, angles, self.entangling, qargs, shots
+                        self.params,
+                        angles,
+                        self.entangling,
+                        qargs,
+                        shots,
+                        False,
+                        self.features_per_layer,
+                        self.n_output_qubits,
                     )
             else:
                 ang = np.pi * angles + self.params[0]
