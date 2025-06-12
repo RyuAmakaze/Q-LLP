@@ -126,7 +126,8 @@ def circuit_state_probs(
         if circ.num_clbits < len(qargs):
             circ.add_register(ClassicalRegister(len(qargs) - circ.num_clbits))
         circ.measure(qargs, range(len(qargs)))
-        sim = AerSimulator(device='GPU')
+        dev = 'GPU' if torch.cuda.is_available() else 'CPU'
+        sim = AerSimulator(device=dev)
         circ = transpile(circ, backend=sim)
         result = sim.run(circ, shots=shots).result()
         counts = result.get_counts()

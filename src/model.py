@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import math
 from config import NUM_CLASSES
 import config
 from quantum_utils import (
@@ -33,12 +34,14 @@ class CircuitProbFunction(torch.autograd.Function):
         shots=None,
         adaptive=False,
         features_per_layer=config.FEATURES_PER_LAYER,
+        n_output_qubits=0,
     ):
         ctx.entangling = entangling
         ctx.qargs = qargs
         ctx.shots = shots
         ctx.adaptive = adaptive
         ctx.features_per_layer = features_per_layer
+        ctx.n_output_qubits = n_output_qubits
         ctx.save_for_backward(params, x)
 
         if adaptive:
@@ -47,7 +50,7 @@ class CircuitProbFunction(torch.autograd.Function):
                 params.cpu(),
                 entangling=entangling,
                 n_qubits=params.shape[-1],
-                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+                n_output_qubits=n_output_qubits,
                 features_per_layer=features_per_layer,
             )
         else:
@@ -55,7 +58,7 @@ class CircuitProbFunction(torch.autograd.Function):
                 np.pi * x.cpu(),
                 params.cpu(),
                 entangling=entangling,
-                n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+                n_output_qubits=n_output_qubits,
             )
         probs = circuit_state_probs(circuit, qargs=qargs, shots=shots)
         return probs.to(params.device)
@@ -70,7 +73,7 @@ class CircuitProbFunction(torch.autograd.Function):
             entangling=ctx.entangling,
             qargs=ctx.qargs,
             shots=ctx.shots,
-            n_output_qubits=len(ctx.qargs) if ctx.qargs else 0,
+            n_output_qubits=ctx.n_output_qubits,
             adaptive=ctx.adaptive,
             features_per_layer=ctx.features_per_layer,
         )
@@ -78,6 +81,7 @@ class CircuitProbFunction(torch.autograd.Function):
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
         return (
             grad_params.to(params.device),
+            None,
             None,
             None,
             None,
@@ -212,8 +216,16 @@ class QuantumLLPModel(nn.Module):
             if self.use_circuit:
                 if self.n_output_qubits > 0:
                     qargs = list(range(self.n_feature_qubits, self.n_qubits))
+                    n_out = self.n_output_qubits
+                elif NUM_CLASSES <= 2 ** self.n_feature_qubits:
+                    n_out = 0
+                    n_meas = math.ceil(math.log2(NUM_CLASSES))
+                    qargs = list(
+                        range(self.n_feature_qubits - n_meas, self.n_feature_qubits)
+                    )
                 else:
                     qargs = None
+                    n_out = 0
                 shots = getattr(config, "MEASURE_SHOTS", None)
                 if self.adaptive:
                     full_probs = CircuitProbFunction.apply(
@@ -224,10 +236,18 @@ class QuantumLLPModel(nn.Module):
                         shots,
                         True,
                         self.features_per_layer,
+                        n_out,
                     )
                 else:
                     full_probs = CircuitProbFunction.apply(
-                        self.params, angles, self.entangling, qargs, shots
+                        self.params,
+                        angles,
+                        self.entangling,
+                        qargs,
+                        shots,
+                        False,
+                        self.features_per_layer,
+                        n_out,
                     )
             else:
                 ang = np.pi * angles + self.params[0]
@@ -253,6 +273,8 @@ class QuantumLLPModel(nn.Module):
                     full_probs = self._state_probs(ang)
 
             probs = self._output_probs(full_probs)
+            if self.n_output_qubits == 0:
+                probs = probs[:NUM_CLASSES]
             probs = probs.to(self.params.device)
             probs = probs / probs.sum()
             probs_batch.append(probs)
