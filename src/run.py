@@ -27,6 +27,7 @@ def main() -> None:
         VAL_SPLIT,
         NUM_QUBITS,
         NUM_OUTPUT_QUBITS,
+        USE_FEATURE_OUTPUT,
         FEATURES_PER_LAYER,
         NUM_LAYERS,
         RUN_EPOCHS,
@@ -112,6 +113,7 @@ def main() -> None:
         entangling=NUM_LAYERS > 1,
         n_output_qubits=NUM_OUTPUT_QUBITS,
         adaptive=True,
+        use_feature_output=USE_FEATURE_OUTPUT,
     ).to(DEVICE)
     train_model(
         model,

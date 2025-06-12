@@ -58,14 +58,16 @@ pytest
 Multi-layer or entangling quantum circuits are now differentiated using the
 parameter-shift rule.
 
-### Dedicated output qubits
+### Output qubit options
 
-Setting `config.NUM_OUTPUT_QUBITS` to a value greater than zero adds
-additional qubits that are measured for class prediction. Circuit
-simulation is still enabled automatically when entangling layers or
-multiple parameterized layers are used. When only a single non-entangling
-layer is present, class probabilities for the output qubits are computed
-analytically for improved performance.
-When using dedicated output qubits, the training labels are converted
-to probability vectors of length `2 ** NUM_OUTPUT_QUBITS` so that the
-loss computation matches the model output.
+When `config.USE_FEATURE_OUTPUT` is `True` and `NUM_OUTPUT_QUBITS` is `0`,
+the highest feature qubits are reused for class prediction. The number of
+bits required is determined from `config.NUM_CLASSES`.
+If `NUM_OUTPUT_QUBITS` is set to a positive value, dedicated qubits are
+allocated instead. Circuit simulation is still enabled automatically when
+entangling layers or multiple parameterized layers are used. When only a
+single non-entangling layer is present, class probabilities for the output
+qubits are computed analytically for improved performance.  In the dedicated
+case the training labels are converted to probability vectors of length
+`2 ** NUM_OUTPUT_QUBITS` so that the loss computation matches the model
+output.

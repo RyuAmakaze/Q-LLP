@@ -29,7 +29,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_QUBITS = 10 # <24 number of feature-encoding qubits 
 # Optional dedicated output qubits.  When non-zero, ``NUM_QUBITS`` only
 # specifies the number of qubits used for encoding input features.
-NUM_OUTPUT_QUBITS = 2
+# When ``NUM_OUTPUT_QUBITS`` is zero, the highest feature qubits are measured
+# for class predictions.  Set to a positive value to allocate dedicated output
+# qubits instead.
+NUM_OUTPUT_QUBITS = 0
+USE_FEATURE_OUTPUT = True
 FEATURES_PER_LAYER = 12  # >NUM_QUBITS, <SUBSET_SIZE inputs consumed by adaptive_entangling_circuit
 NUM_LAYERS = 6  # number of parameterized layers in the quantum circuit
 NUM_CLASSES = 4

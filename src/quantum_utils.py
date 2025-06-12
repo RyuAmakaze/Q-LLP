@@ -126,7 +126,15 @@ def circuit_state_probs(
         if circ.num_clbits < len(qargs):
             circ.add_register(ClassicalRegister(len(qargs) - circ.num_clbits))
         circ.measure(qargs, range(len(qargs)))
-        sim = AerSimulator(device='GPU')
+
+        if torch.cuda.is_available():
+            try:
+                sim = AerSimulator(device="GPU")
+            except Exception:  # pragma: no cover - GPU simulator missing
+                sim = AerSimulator()
+        else:
+            sim = AerSimulator()
+
         circ = transpile(circ, backend=sim)
         result = sim.run(circ, shots=shots).result()
         counts = result.get_counts()
@@ -152,8 +160,19 @@ def circuit_state_probs(
                 probs = None
 
         if probs is None:
-            state = Statevector.from_instruction(circuit)
-            probs = state.probabilities(qargs=qargs[::-1])
+            try:
+                from qiskit_aer import AerSimulator
+
+                sim = AerSimulator(method="statevector")
+                circ = circuit.copy()
+                circ.save_statevector()
+                circ = transpile(circ, backend=sim)
+                result = sim.run(circ).result()
+                state = result.get_statevector()
+                probs = state.probabilities(qargs=qargs[::-1])
+            except Exception:
+                state = Statevector.from_instruction(circuit)
+                probs = state.probabilities(qargs=qargs[::-1])
 
     return torch.tensor(probs, dtype=torch.float32)
 

@@ -95,6 +95,7 @@ class QuantumLLPModel(nn.Module):
         entangling=False,
         n_output_qubits=0,
         adaptive=False,
+        use_feature_output=False,
     ):
         """Quantum LLP model supporting optional deep entangling circuits.
 
@@ -121,12 +122,21 @@ class QuantumLLPModel(nn.Module):
         adaptive : bool, optional
             If ``True`` input features are encoded using
             :func:`quantum_utils.adaptive_entangling_circuit`.
+        use_feature_output : bool, optional
+            If ``True`` the last ``n_output_qubits`` of ``n_qubits`` are used
+            for predictions instead of allocating dedicated output qubits.
         """
 
         super().__init__()
+        self.feature_output = use_feature_output
         self.n_feature_qubits = n_qubits
         self.n_output_qubits = n_output_qubits
-        self.n_qubits = n_qubits + n_output_qubits
+        if self.feature_output:
+            if self.n_output_qubits == 0:
+                self.n_output_qubits = int(np.ceil(np.log2(NUM_CLASSES)))
+            self.n_qubits = n_qubits
+        else:
+            self.n_qubits = n_qubits + n_output_qubits
         self.num_layers = num_layers
         self.entangling = entangling
         self.adaptive = adaptive
@@ -182,17 +192,26 @@ class QuantumLLPModel(nn.Module):
         return probs.to(angles.device)
 
     def _output_probs(self, full_probs):
-        """Return probabilities for the dedicated output qubits."""
+        """Return probabilities for the output qubits."""
         if self.n_output_qubits == 0:
             return full_probs
-        # When using ``CircuitProbFunction`` with ``qargs`` specified, the
+
+        # When using ``CircuitProbFunction`` with ``qargs`` specified the
         # returned probabilities already correspond to the output qubits only.
         if full_probs.numel() == 2 ** self.n_output_qubits:
             return full_probs
 
-        probs = full_probs.view(
-            2 ** self.n_feature_qubits, 2 ** self.n_output_qubits
-        )
+        if self.feature_output:
+            dims = [2] * self.n_feature_qubits
+            probs = full_probs.view(*dims)
+            out_start = self.n_feature_qubits - self.n_output_qubits
+            perm = list(range(out_start)) + list(range(out_start, self.n_feature_qubits))
+            probs = probs.permute(*perm)
+            probs = probs.reshape(2 ** (self.n_feature_qubits - self.n_output_qubits), 2 ** self.n_output_qubits)
+            out_probs = probs.sum(dim=0)
+            return out_probs
+
+        probs = full_probs.view(2 ** self.n_feature_qubits, 2 ** self.n_output_qubits)
         out_probs = probs.sum(dim=0)
         return out_probs
 
@@ -211,7 +230,15 @@ class QuantumLLPModel(nn.Module):
 
             if self.use_circuit:
                 if self.n_output_qubits > 0:
-                    qargs = list(range(self.n_feature_qubits, self.n_qubits))
+                    if self.feature_output:
+                        qargs = list(
+                            range(
+                                self.n_feature_qubits - self.n_output_qubits,
+                                self.n_feature_qubits,
+                            )
+                        )
+                    else:
+                        qargs = list(range(self.n_feature_qubits, self.n_qubits))
                 else:
                     qargs = None
                 shots = getattr(config, "MEASURE_SHOTS", None)
@@ -240,6 +267,7 @@ class QuantumLLPModel(nn.Module):
                     continue
                 elif (
                     self.n_output_qubits > 0
+                    and not self.feature_output
                     and self.num_layers == 1
                     and not self.entangling
                     and NUM_CLASSES <= 2 ** self.n_output_qubits
