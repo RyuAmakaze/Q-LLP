@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import math
 from config import NUM_CLASSES
 import config
 from quantum_utils import (
@@ -127,6 +128,7 @@ class QuantumLLPModel(nn.Module):
         self.n_feature_qubits = n_qubits
         self.n_output_qubits = n_output_qubits
         self.n_qubits = n_qubits + n_output_qubits
+        self.class_bits = int(math.ceil(math.log2(NUM_CLASSES)))
         self.num_layers = num_layers
         self.entangling = entangling
         self.adaptive = adaptive
@@ -184,7 +186,12 @@ class QuantumLLPModel(nn.Module):
     def _output_probs(self, full_probs):
         """Return probabilities for the dedicated output qubits."""
         if self.n_output_qubits == 0:
-            return full_probs
+            k = self.class_bits
+            if k == 0:
+                return full_probs[: NUM_CLASSES]
+            probs = full_probs.view(2 ** k, 2 ** (self.n_qubits - k))
+            out_probs = probs.sum(dim=1)
+            return out_probs[: NUM_CLASSES]
         # When using ``CircuitProbFunction`` with ``qargs`` specified, the
         # returned probabilities already correspond to the output qubits only.
         if full_probs.numel() == 2 ** self.n_output_qubits:
@@ -231,14 +238,7 @@ class QuantumLLPModel(nn.Module):
                     )
             else:
                 ang = np.pi * angles + self.params[0]
-                if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
-                    full_probs = self._first_n_probs(ang, NUM_CLASSES)
-                    probs = full_probs
-                    probs = probs.to(self.params.device)
-                    probs = probs / probs.sum()
-                    probs_batch.append(probs)
-                    continue
-                elif (
+                if (
                     self.n_output_qubits > 0
                     and self.num_layers == 1
                     and not self.entangling
