@@ -62,7 +62,8 @@ parameter-shift rule.
 
 When `config.USE_FEATURE_OUTPUT` is `True` and `NUM_OUTPUT_QUBITS` is `0`,
 the highest feature qubits are reused for class prediction. The number of
-bits required is determined from `config.NUM_CLASSES`.
+bits required is determined from `config.NUM_CLASSES`.  Ensure that the
+resulting value does not exceed `config.NUM_QUBITS`.
 If `NUM_OUTPUT_QUBITS` is set to a positive value, dedicated qubits are
 allocated instead. Circuit simulation is still enabled automatically when
 entangling layers or multiple parameterized layers are used. When only a

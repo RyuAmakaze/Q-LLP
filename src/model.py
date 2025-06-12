@@ -134,6 +134,10 @@ class QuantumLLPModel(nn.Module):
         if self.feature_output:
             if self.n_output_qubits == 0:
                 self.n_output_qubits = int(np.ceil(np.log2(NUM_CLASSES)))
+            if self.n_output_qubits > n_qubits:
+                raise ValueError(
+                    "n_output_qubits must not exceed n_qubits when using feature-based outputs"
+                )
             self.n_qubits = n_qubits
         else:
             self.n_qubits = n_qubits + n_output_qubits
@@ -192,7 +196,7 @@ class QuantumLLPModel(nn.Module):
         return probs.to(angles.device)
 
     def _output_probs(self, full_probs):
-        """Return probabilities for the output qubits."""
+        """Return probabilities for the designated output qubits."""
         if self.n_output_qubits == 0:
             return full_probs
 
@@ -202,14 +206,11 @@ class QuantumLLPModel(nn.Module):
             return full_probs
 
         if self.feature_output:
-            dims = [2] * self.n_feature_qubits
-            probs = full_probs.view(*dims)
-            out_start = self.n_feature_qubits - self.n_output_qubits
-            perm = list(range(out_start)) + list(range(out_start, self.n_feature_qubits))
-            probs = probs.permute(*perm)
-            probs = probs.reshape(2 ** (self.n_feature_qubits - self.n_output_qubits), 2 ** self.n_output_qubits)
-            out_probs = probs.sum(dim=0)
-            return out_probs
+            probs = full_probs.view(
+                2 ** (self.n_feature_qubits - self.n_output_qubits),
+                2 ** self.n_output_qubits,
+            )
+            return probs.sum(dim=0)
 
         probs = full_probs.view(2 ** self.n_feature_qubits, 2 ** self.n_output_qubits)
         out_probs = probs.sum(dim=0)
