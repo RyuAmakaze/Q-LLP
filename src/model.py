@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import math
 from config import NUM_CLASSES
 import config
 from quantum_utils import (
@@ -229,6 +230,18 @@ class QuantumLLPModel(nn.Module):
                     full_probs = CircuitProbFunction.apply(
                         self.params, angles, self.entangling, qargs, shots
                     )
+
+                if self.n_output_qubits == 0:
+                    n_bits = math.ceil(math.log2(NUM_CLASSES))
+                    if full_probs.numel() != 2 ** n_bits:
+                        full_probs = full_probs.view(
+                            2 ** (self.n_qubits - n_bits), 2 ** n_bits
+                        ).sum(dim=0)
+                    probs = full_probs[:NUM_CLASSES]
+                    probs = probs.to(self.params.device)
+                    probs = probs / probs.sum()
+                    probs_batch.append(probs)
+                    continue
             else:
                 ang = np.pi * angles + self.params[0]
                 if self.n_output_qubits == 0 and NUM_CLASSES <= 2 ** self.n_qubits:
