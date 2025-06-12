@@ -36,7 +36,7 @@ def test_circuit_state_probs_qargs():
     assert probs.shape == (2,)
     assert torch.allclose(probs, torch.tensor([0.0, 1.0]))
 
-
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_circuit_state_probs_shots():
     qc = QuantumCircuit(1)
     qc.h(0)
