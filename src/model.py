@@ -220,6 +220,11 @@ class QuantumLLPModel(nn.Module):
         probs_batch = []
         for x in x_batch:
             if self.adaptive:
+                if x.shape[0] < self.features_per_layer:
+                    raise ValueError(
+                        f"QuantumLLPModel requires at least {self.features_per_layer}"
+                        f" features for adaptive encoding, got {x.shape[0]}"
+                    )
                 features = x[: self.features_per_layer]
             else:
                 if x.shape[0] != self.n_feature_qubits:
