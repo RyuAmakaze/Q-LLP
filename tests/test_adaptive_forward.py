@@ -13,7 +13,6 @@ from model import QuantumLLPModel
 def test_forward_with_adaptive_encoding():
     config.MEASURE_SHOTS = None
     model = QuantumLLPModel(n_qubits=4, adaptive=True)
-    print(f"Qubits in circuit: {model.circuit.qubits}")  # Debugging line
     x_batch = torch.rand(2, config.FEATURES_PER_LAYER)
     probs = model(x_batch)
     assert probs.shape[0] == 2
