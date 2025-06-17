@@ -4,8 +4,8 @@ import os
 
 # Dataset settings
 DATA_ROOT = "./data"
-SUBSET_SIZE = 20
-TEST_SUBSET_SIZE = 20
+SUBSET_SIZE = 120
+TEST_SUBSET_SIZE = 30
 BAG_SIZE = 1  # number of samples per bag
 BATCH_SIZE = BAG_SIZE  # backward compatibility
 ENCODING_DIM = 384 #ViT-S/14アーキテクチャの埋め込みサイズは384
@@ -29,8 +29,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_QUBITS = 10 # <24 number of feature-encoding qubits 
 # Optional dedicated output qubits.  When non-zero, ``NUM_QUBITS`` only
 # specifies the number of qubits used for encoding input features.
-NUM_OUTPUT_QUBITS = 2
-FEATURES_PER_LAYER = 10  # >NUM_QUBITS, <SUBSET_SIZE inputs consumed by adaptive_entangling_circuit
+NUM_OUTPUT_QUBITS = 0
+FEATURES_PER_LAYER = 20  # >NUM_QUBITS, <SUBSET_SIZE*VAL_SPLIT inputs consumed by adaptive_entangling_circuit
 NUM_LAYERS = 6  # number of parameterized layers in the quantum circuit
 NUM_CLASSES = 4
 MEASURE_SHOTS = 100

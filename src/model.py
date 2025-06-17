@@ -214,7 +214,19 @@ class QuantumLLPModel(nn.Module):
                 if self.n_output_qubits > 0:
                     qargs = list(range(self.n_feature_qubits, self.n_qubits))
                 else:
-                    qargs = None
+                    # NUM_CLASSES に応じて必要なビット数を計算
+                    n_bits = math.ceil(math.log2(NUM_CLASSES))
+
+                    # チェック: 特徴ビット数で表現可能か？
+                    if n_bits > self.n_feature_qubits:
+                        raise ValueError(
+                            f"NUM_CLASSES={NUM_CLASSES} を表現するには {n_bits} ビット必要ですが、"
+                            f"n_feature_qubits={self.n_feature_qubits} しかありません。"
+                        )
+
+                    # 特徴ビットの末尾 n_bits 個を出力ビットとして測定
+                    qargs = list(range(self.n_feature_qubits - n_bits, self.n_feature_qubits))
+                    
                 shots = getattr(config, "MEASURE_SHOTS", None)
                 if self.adaptive:
                     full_probs = CircuitProbFunction.apply(
