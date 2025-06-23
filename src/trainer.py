@@ -27,6 +27,10 @@ def train_model(
     device=DEVICE,
     shuffle=SHUFFLE_DATA,
     log_interval: int = 10,
+    *,
+    start_epoch: int = 0,
+    save_interval: int = 1,
+    model_file_name: str = "trained_quantum_llp",
 ):
     """Train model while recreating bags every epoch."""
     model.to(device)
@@ -37,7 +41,8 @@ def train_model(
     if model.n_output_qubits > 0 and output_dim < num_classes:
         raise ValueError("output qubits cannot represent all classes")
 
-    for epoch in range(epochs):
+    total_epochs = start_epoch + epochs
+    for epoch in range(start_epoch, total_epochs):
         train_sampler, teacher_probs_train = create_random_bags(
             train_dataset, bag_size, output_dim, shuffle=shuffle
         )
@@ -97,8 +102,14 @@ def train_model(
                 val_total_loss += loss.item()
             avg_val_loss = val_total_loss / len(val_loader)
         print(
-            f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
+            f"Epoch {epoch+1}/{total_epochs}, Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}"
         )
+
+        # Save checkpoint at configured interval
+        if save_interval > 0 and ((epoch + 1) % save_interval == 0 or epoch + 1 == total_epochs):
+            save_path = f"{model_file_name}_{epoch+1}.pt"
+            torch.save(model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
 
 
 def evaluate_model(model, data_loader, num_classes, device=DEVICE):

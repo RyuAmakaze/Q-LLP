@@ -10,6 +10,7 @@ def main() -> None:
 
     from model import QuantumLLPModel
     from trainer import train_model, evaluate_model
+    import os
     from data_utils import (
         get_dataset_class,
         get_transform,
@@ -38,6 +39,9 @@ def main() -> None:
         PIN_MEMORY,
         PRELOAD_DATASET,
         PRELOAD_BATCH_SIZE,
+        MODEL_FILE_NAME,
+        START_MODEL_FILE_NAME,
+        SAVE_MODEL_EPOCH_NUM,
     )
 
     # Allow PyTorch to utilise multiple CPU cores for forward passes
@@ -113,6 +117,20 @@ def main() -> None:
         n_output_qubits=NUM_OUTPUT_QUBITS,
         adaptive=True,
     ).to(DEVICE)
+
+    start_epoch = 0
+    # Load checkpoint if provided
+    if START_MODEL_FILE_NAME:
+        if os.path.exists(START_MODEL_FILE_NAME):
+            model.load_state_dict(torch.load(START_MODEL_FILE_NAME, map_location=DEVICE))
+            print(f"Loaded model from {START_MODEL_FILE_NAME}")
+            base = os.path.splitext(os.path.basename(START_MODEL_FILE_NAME))[0]
+            try:
+                start_epoch = int(base.split("_")[-1])
+            except ValueError:
+                start_epoch = 0
+        else:
+            print(f"Warning: checkpoint {START_MODEL_FILE_NAME} not found. Starting from scratch.")
     train_model(
         model,
         train_subset,
@@ -123,11 +141,16 @@ def main() -> None:
         lr=RUN_LR,
         device=DEVICE,
         shuffle=SHUFFLE_DATA,
+        start_epoch=start_epoch,
+        save_interval=SAVE_MODEL_EPOCH_NUM,
+        model_file_name=MODEL_FILE_NAME,
     )
 
-# 4. Save model
-    torch.save(model.state_dict(), "trained_quantum_llp.pt")
-    print("Model saved to trained_quantum_llp.pt")
+# 4. Save final model for convenience
+    final_epoch = start_epoch + RUN_EPOCHS
+    final_path = f"{MODEL_FILE_NAME}_{final_epoch}.pt"
+    torch.save(model.state_dict(), final_path)
+    print(f"Model saved to {final_path}")
 
 # 5. Inference on a few test batches and evaluation
     model.eval()

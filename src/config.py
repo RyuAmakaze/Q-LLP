@@ -40,3 +40,14 @@ DEFAULT_EPOCHS = 10
 DEFAULT_LR = 0.01
 RUN_EPOCHS = 1
 RUN_LR = 0.1
+
+# Checkpoint settings
+# Base file name used when saving models. The epoch number is appended
+# to this value (without extension) whenever a checkpoint is written.
+MODEL_FILE_NAME = "trained_quantum_llp"
+# Optional checkpoint to load before training starts. When empty the
+# model is initialised from scratch.
+START_MODEL_FILE_NAME = ""
+# Save a checkpoint every ``SAVE_MODEL_EPOCH_NUM`` epochs. A value of ``1``
+# means the model is saved after every epoch.
+SAVE_MODEL_EPOCH_NUM = 1
