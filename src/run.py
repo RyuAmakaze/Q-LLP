@@ -42,6 +42,7 @@ def main() -> None:
         MODEL_FILE_NAME,
         START_MODEL_FILE_NAME,
         SAVE_MODEL_EPOCH_NUM,
+        USE_AMPLITUDE_ENCODING,
     )
 
     # Allow PyTorch to utilise multiple CPU cores for forward passes
@@ -115,7 +116,8 @@ def main() -> None:
         num_layers=NUM_LAYERS,
         entangling=NUM_LAYERS > 1,
         n_output_qubits=NUM_OUTPUT_QUBITS,
-        adaptive=True,
+        adaptive=not USE_AMPLITUDE_ENCODING,
+        amplitude_encoding=USE_AMPLITUDE_ENCODING,
     ).to(DEVICE)
 
     start_epoch = 0

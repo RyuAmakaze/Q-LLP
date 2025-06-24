@@ -69,3 +69,10 @@ analytically for improved performance.
 When using dedicated output qubits, the training labels are converted
 to probability vectors of length `2 ** NUM_OUTPUT_QUBITS` so that the
 loss computation matches the model output.
+
+### Amplitude encoding
+
+Setting `config.USE_AMPLITUDE_ENCODING = True` enables amplitude-based
+state preparation for input features. The feature vector is normalised and
+padded or truncated to the available qubits before being used to
+initialise the quantum state via `QuantumCircuit.initialize`.

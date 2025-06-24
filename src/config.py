@@ -34,6 +34,7 @@ FEATURES_PER_LAYER = 20  # >NUM_QUBITS, <SUBSET_SIZE*VAL_SPLIT inputs consumed b
 NUM_LAYERS = 6  # number of parameterized layers in the quantum circuit
 NUM_CLASSES = 4
 MEASURE_SHOTS = 100
+USE_AMPLITUDE_ENCODING = False
 
 # Training settings
 DEFAULT_EPOCHS = 10
