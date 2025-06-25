@@ -7,6 +7,7 @@ import config
 from quantum_utils import (
     data_to_circuit,
     adaptive_data_to_circuit,
+    amplitude_data_to_circuit,
     circuit_state_probs,
     parameter_shift_gradients,
     QuantumCircuit,
@@ -35,11 +36,13 @@ class CircuitProbFunction(torch.autograd.Function):
         adaptive=False,
         features_per_layer=config.FEATURES_PER_LAYER,
         n_output_qubits=0,
+        amplitude=False,
     ):
         ctx.entangling = entangling
         ctx.qargs = qargs
         ctx.shots = shots
         ctx.adaptive = adaptive
+        ctx.amplitude = amplitude
         ctx.features_per_layer = features_per_layer
         ctx.n_output_qubits = n_output_qubits
         ctx.save_for_backward(params, x)
@@ -52,6 +55,13 @@ class CircuitProbFunction(torch.autograd.Function):
                 n_qubits=params.shape[-1],
                 n_output_qubits=n_output_qubits,
                 features_per_layer=features_per_layer,
+            )
+        elif amplitude:
+            circuit = amplitude_data_to_circuit(
+                x.cpu(),
+                params.cpu(),
+                entangling=entangling,
+                n_output_qubits=n_output_qubits,
             )
         else:
             circuit = data_to_circuit(
@@ -66,7 +76,7 @@ class CircuitProbFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         params, x = ctx.saved_tensors
-        angles = x.cpu() if ctx.adaptive else np.pi * x.cpu()
+        angles = x.cpu() if (ctx.adaptive or ctx.amplitude) else np.pi * x.cpu()
         _, grads = parameter_shift_gradients(
             angles,
             params.cpu(),
@@ -75,12 +85,14 @@ class CircuitProbFunction(torch.autograd.Function):
             shots=ctx.shots,
             n_output_qubits=ctx.n_output_qubits,
             adaptive=ctx.adaptive,
+            amplitude=ctx.amplitude,
             features_per_layer=ctx.features_per_layer,
         )
         grads = grads.to(grad_output.device)
         grad_params = torch.einsum("p,lqp->lq", grad_output, grads)
         return (
             grad_params.to(params.device),
+            None,
             None,
             None,
             None,
@@ -99,6 +111,7 @@ class QuantumLLPModel(nn.Module):
         entangling=False,
         n_output_qubits=0,
         adaptive=False,
+        amplitude_encoding=False,
     ):
         """Quantum LLP model supporting optional deep entangling circuits.
 
@@ -125,6 +138,9 @@ class QuantumLLPModel(nn.Module):
         adaptive : bool, optional
             If ``True`` input features are encoded using
             :func:`quantum_utils.adaptive_entangling_circuit`.
+        amplitude_encoding : bool, optional
+            If ``True`` features are encoded as amplitudes using
+            :func:`quantum_utils.amplitude_encoding`.
         """
 
         super().__init__()
@@ -134,8 +150,11 @@ class QuantumLLPModel(nn.Module):
         self.num_layers = num_layers
         self.entangling = entangling
         self.adaptive = adaptive
+        self.amplitude_encoding = amplitude_encoding
         self.features_per_layer = config.FEATURES_PER_LAYER
-        self.use_circuit = use_circuit or num_layers > 1 or entangling or adaptive
+        self.use_circuit = (
+            use_circuit or num_layers > 1 or entangling or adaptive or amplitude_encoding
+        )
         self.params = nn.Parameter(
             torch.randn(num_layers, self.n_qubits, dtype=torch.float32)
         )
@@ -206,6 +225,8 @@ class QuantumLLPModel(nn.Module):
         for x in x_batch:
             if self.adaptive:
                 features = x[: self.features_per_layer]
+            elif self.amplitude_encoding:
+                features = x
             else:
                 if x.shape[0] != self.n_feature_qubits:
                     x = x[: self.n_feature_qubits]
@@ -241,6 +262,19 @@ class QuantumLLPModel(nn.Module):
                         True,
                         self.features_per_layer,
                         self.n_output_qubits,
+                        False,
+                    )
+                elif self.amplitude_encoding:
+                    full_probs = CircuitProbFunction.apply(
+                        self.params,
+                        features,
+                        self.entangling,
+                        qargs,
+                        shots,
+                        False,
+                        self.features_per_layer,
+                        self.n_output_qubits,
+                        True,
                     )
                 else:
                     full_probs = CircuitProbFunction.apply(
@@ -252,6 +286,7 @@ class QuantumLLPModel(nn.Module):
                         False,
                         self.features_per_layer,
                         self.n_output_qubits,
+                        False,
                     )
 
                 if self.n_output_qubits == 0:

@@ -11,6 +11,7 @@ from quantum_utils import (
     data_to_circuit,
     adaptive_entangling_circuit,
     circuit_state_probs,
+    amplitude_encoding,
 )
 import config
 from qiskit import QuantumCircuit
@@ -43,4 +44,11 @@ def test_circuit_state_probs_shots():
     probs = circuit_state_probs(qc, shots=200)
     assert probs.shape == (2,)
     assert abs(probs[0] - 0.5) < 0.2
+
+
+def test_amplitude_encoding_probs():
+    qc = amplitude_encoding([1.0, 0.0, 1.0, 0.0], n_qubits=2)
+    probs = circuit_state_probs(qc)
+    assert probs.shape == (4,)
+    assert torch.allclose(probs.sum(), torch.tensor(1.0))
 

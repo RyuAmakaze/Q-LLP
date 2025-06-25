@@ -40,6 +40,59 @@ def multi_rz(qc: QuantumCircuit, qubits: list[int], theta: float):
     for i in reversed(range(len(qubits) - 1)):
         qc.cx(qubits[i], qubits[i + 1])
 
+def amplitude_encoding(x, n_qubits=config.NUM_QUBITS):
+    """Return a circuit preparing ``x`` as amplitudes on ``n_qubits``.
+
+    Parameters
+    ----------
+    x : Sequence[float] or torch.Tensor
+        Real-valued feature vector to encode. The vector is normalised to
+        unit length and padded or truncated to match ``2 ** n_qubits``.
+    n_qubits : int, optional
+        Number of qubits available for the state preparation.
+    """
+
+    vec = _to_numpy(x).astype(float).flatten()
+    target_len = 2 ** n_qubits
+    if vec.size < target_len:
+        vec = np.pad(vec, (0, target_len - vec.size))
+    elif vec.size > target_len:
+        vec = vec[:target_len]
+
+    norm = np.linalg.norm(vec)
+    if norm == 0:
+        raise ValueError("amplitude_encoding: input vector has zero norm")
+    vec = vec / norm
+
+    qc = QuantumCircuit(n_qubits)
+    qc.initialize(vec.tolist(), list(range(n_qubits)))
+    return qc
+
+def amplitude_data_to_circuit(x, params=None, entangling=False, n_output_qubits=0):
+    """Return a circuit with amplitude-encoded ``x`` followed by parameter layers."""
+
+    if params is not None:
+        n_qubits = params.shape[-1]
+    else:
+        n_qubits = config.NUM_QUBITS
+
+    qc = amplitude_encoding(x, n_qubits)
+
+    if params is not None:
+        params = _to_numpy(params)
+        params = np.atleast_2d(params)
+        feature_qubits = n_qubits - int(n_output_qubits)
+        for layer_idx, layer in enumerate(params):
+            for q, theta in enumerate(layer):
+                if layer_idx == 0 and q >= feature_qubits:
+                    continue
+                qc.rz(float(theta), q)
+            if entangling and n_qubits > 1:
+                for q in range(n_qubits - 1):
+                    qc.cx(q, q + 1)
+
+    return qc
+
 def data_to_circuit(angles, params=None, entangling=False, n_output_qubits=0):
     """Return a QuantumCircuit encoding ``angles`` via Y rotations.
 
@@ -206,6 +259,7 @@ def parameter_shift_gradients(
     n_output_qubits: int = 0,
     *,
     adaptive: bool = False,
+    amplitude: bool = False,
     features_per_layer: int = config.FEATURES_PER_LAYER,
     lambdas=None,
     gamma: float = 1.0,
@@ -227,6 +281,9 @@ def parameter_shift_gradients(
     n_output_qubits : int, optional
         Number of dedicated output qubits to exclude from the first layer
         rotations.
+    amplitude : bool, optional
+        If ``True`` the data is encoded using amplitude initialization rather
+        than rotation angles.
     """
 
 
@@ -247,6 +304,13 @@ def parameter_shift_gradients(
                 lambdas=lambdas,
                 gamma=gamma,
                 delta=delta,
+            )
+        elif amplitude:
+            base_circuit = amplitude_data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_output_qubits=n_output_qubits,
             )
         else:
             base_circuit = data_to_circuit(
@@ -285,18 +349,32 @@ def parameter_shift_gradients(
                     delta=delta,
                 )
             else:
-                plus_circ = data_to_circuit(
-                    angles,
-                    params + shift_vec,
-                    entangling=False,
-                    n_output_qubits=n_output_qubits,
-                )
-                minus_circ = data_to_circuit(
-                    angles,
-                    params - shift_vec,
-                    entangling=False,
-                    n_output_qubits=n_output_qubits,
-                )
+                if amplitude:
+                    plus_circ = amplitude_data_to_circuit(
+                        angles,
+                        params + shift_vec,
+                        entangling=False,
+                        n_output_qubits=n_output_qubits,
+                    )
+                    minus_circ = amplitude_data_to_circuit(
+                        angles,
+                        params - shift_vec,
+                        entangling=False,
+                        n_output_qubits=n_output_qubits,
+                    )
+                else:
+                    plus_circ = data_to_circuit(
+                        angles,
+                        params + shift_vec,
+                        entangling=False,
+                        n_output_qubits=n_output_qubits,
+                    )
+                    minus_circ = data_to_circuit(
+                        angles,
+                        params - shift_vec,
+                        entangling=False,
+                        n_output_qubits=n_output_qubits,
+                    )
             plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
             minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
             grad = 0.5 * (plus_probs - minus_probs)
@@ -319,6 +397,13 @@ def parameter_shift_gradients(
             lambdas=lambdas,
             gamma=gamma,
             delta=delta,
+        )
+    elif amplitude:
+        base_circuit = amplitude_data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_output_qubits=n_output_qubits,
         )
     else:
         base_circuit = data_to_circuit(
@@ -357,6 +442,19 @@ def parameter_shift_gradients(
                     lambdas=lambdas,
                     gamma=gamma,
                     delta=delta,
+                )
+            elif amplitude:
+                plus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
                 )
             else:
                 plus_circ = data_to_circuit(
