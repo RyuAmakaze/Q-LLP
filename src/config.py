@@ -36,6 +36,10 @@ NUM_CLASSES = 4
 MEASURE_SHOTS = 100
 USE_AMPLITUDE_ENCODING = False
 
+# Gradient computation method for multi-layer circuits.
+# Options: "parameter_shift" (default) or "finite_diff".
+GRADIENT_METHOD = "parameter_shift"
+
 # Training settings
 DEFAULT_EPOCHS = 10
 DEFAULT_LR = 0.01

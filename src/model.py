@@ -10,6 +10,7 @@ from quantum_utils import (
     amplitude_data_to_circuit,
     circuit_state_probs,
     parameter_shift_gradients,
+    finite_difference_gradients,
 )
 
 
@@ -36,6 +37,7 @@ class CircuitProbFunction(torch.autograd.Function):
         features_per_layer=config.FEATURES_PER_LAYER,
         n_output_qubits=0,
         amplitude=False,
+        grad_method="parameter_shift",
     ):
         ctx.entangling = entangling
         ctx.qargs = qargs
@@ -45,6 +47,7 @@ class CircuitProbFunction(torch.autograd.Function):
         ctx.features_per_layer = features_per_layer
         ctx.n_output_qubits = n_output_qubits
         ctx.save_for_backward(params, x)
+        ctx.grad_method = grad_method
 
         if adaptive:
             circuit = adaptive_data_to_circuit(
@@ -76,7 +79,11 @@ class CircuitProbFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         params, x = ctx.saved_tensors
         angles = x.cpu() if (ctx.adaptive or ctx.amplitude) else np.pi * x.cpu()
-        _, grads = parameter_shift_gradients(
+        grad_fn = parameter_shift_gradients
+        if getattr(ctx, "grad_method", "parameter_shift") == "finite_diff":
+            grad_fn = finite_difference_gradients
+
+        _, grads = grad_fn(
             angles,
             params.cpu(),
             entangling=ctx.entangling,
@@ -99,6 +106,7 @@ class CircuitProbFunction(torch.autograd.Function):
             None,
             None,
             None,
+            None,
         )
 
 class QuantumLLPModel(nn.Module):
@@ -111,6 +119,7 @@ class QuantumLLPModel(nn.Module):
         n_output_qubits=0,
         adaptive=False,
         amplitude_encoding=False,
+        gradient_method=config.GRADIENT_METHOD,
     ):
         """Quantum LLP model supporting optional deep entangling circuits.
 
@@ -130,7 +139,7 @@ class QuantumLLPModel(nn.Module):
             :func:`data_to_circuit` and :func:`circuit_state_probs`. When
             ``num_layers`` > 1 or ``entangling`` is ``True`` this option is
             automatically enabled and gradients are computed using the
-            parameter-shift rule.
+            method selected via ``gradient_method``.
         entangling : bool, optional
             If ``True`` a chain of ``CX`` gates is inserted after each
             parameterized layer.
@@ -140,6 +149,9 @@ class QuantumLLPModel(nn.Module):
         amplitude_encoding : bool, optional
             If ``True`` features are encoded as amplitudes using
             :func:`quantum_utils.amplitude_encoding`.
+        gradient_method : str, optional
+            Gradient estimator to use when differentiating multi-layer
+            circuits. Options are ``"parameter_shift"`` or ``"finite_diff"``.
         """
 
         super().__init__()
@@ -150,6 +162,7 @@ class QuantumLLPModel(nn.Module):
         self.entangling = entangling
         self.adaptive = adaptive
         self.amplitude_encoding = amplitude_encoding
+        self.grad_method = gradient_method
         self.features_per_layer = config.FEATURES_PER_LAYER
         self.use_circuit = (
             use_circuit or num_layers > 1 or entangling or adaptive or amplitude_encoding
@@ -262,6 +275,7 @@ class QuantumLLPModel(nn.Module):
                         self.features_per_layer,
                         self.n_output_qubits,
                         False,
+                        self.grad_method,
                     )
                 elif self.amplitude_encoding:
                     full_probs = CircuitProbFunction.apply(
@@ -274,6 +288,7 @@ class QuantumLLPModel(nn.Module):
                         self.features_per_layer,
                         self.n_output_qubits,
                         True,
+                        self.grad_method,
                     )
                 else:
                     full_probs = CircuitProbFunction.apply(
@@ -286,6 +301,7 @@ class QuantumLLPModel(nn.Module):
                         self.features_per_layer,
                         self.n_output_qubits,
                         False,
+                        self.grad_method,
                     )
 
                 if self.n_output_qubits == 0:

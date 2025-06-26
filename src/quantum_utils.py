@@ -477,6 +477,212 @@ def parameter_shift_gradients(
     return base_probs, grads
 
 
+def finite_difference_gradients(
+    angles,
+    params,
+    eps: float = 1e-3,
+    entangling: bool = False,
+    qargs: Optional[List[int]] = None,
+    shots: Optional[int] = None,
+    n_output_qubits: int = 0,
+    *,
+    adaptive: bool = False,
+    amplitude: bool = False,
+    features_per_layer: int = config.FEATURES_PER_LAYER,
+    lambdas=None,
+    gamma: float = 1.0,
+    delta: float = 1.0,
+):
+    """Return probabilities and gradients via finite differences."""
+
+    angles = _to_numpy(angles)
+    params = _to_numpy(params)
+
+    if params.ndim == 1 and not entangling:
+        if adaptive:
+            base_circuit = adaptive_data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_qubits=params.shape[-1],
+                n_output_qubits=n_output_qubits,
+                features_per_layer=features_per_layer,
+                lambdas=lambdas,
+                gamma=gamma,
+                delta=delta,
+            )
+        elif amplitude:
+            base_circuit = amplitude_data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_output_qubits=n_output_qubits,
+            )
+        else:
+            base_circuit = data_to_circuit(
+                angles,
+                params,
+                entangling=False,
+                n_output_qubits=n_output_qubits,
+            )
+
+        base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
+
+        grads = []
+        for i in range(len(params)):
+            shift_vec = np.zeros_like(params)
+            shift_vec[i] = eps
+            if adaptive:
+                plus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params + shift_vec,
+                    entangling=False,
+                    n_qubits=params.shape[-1],
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+                minus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params - shift_vec,
+                    entangling=False,
+                    n_qubits=params.shape[-1],
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+            elif amplitude:
+                plus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params + shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params - shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
+            else:
+                plus_circ = data_to_circuit(
+                    angles,
+                    params + shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = data_to_circuit(
+                    angles,
+                    params - shift_vec,
+                    entangling=False,
+                    n_output_qubits=n_output_qubits,
+                )
+            plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
+            minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
+            grad = (plus_probs - minus_probs) / (2 * eps)
+            grads.append(grad)
+        grads = torch.stack(grads, dim=0)
+        return base_probs, grads
+
+    params = np.atleast_2d(params)
+    num_layers, n_qubits = params.shape
+
+    if adaptive:
+        base_circuit = adaptive_data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_qubits=n_qubits,
+            n_output_qubits=n_output_qubits,
+            features_per_layer=features_per_layer,
+            lambdas=lambdas,
+            gamma=gamma,
+            delta=delta,
+        )
+    elif amplitude:
+        base_circuit = amplitude_data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_output_qubits=n_output_qubits,
+        )
+    else:
+        base_circuit = data_to_circuit(
+            angles,
+            params,
+            entangling=entangling,
+            n_output_qubits=n_output_qubits,
+        )
+
+    base_probs = circuit_state_probs(base_circuit, qargs=qargs, shots=shots)
+
+    grads = torch.zeros(num_layers, n_qubits, base_probs.numel(), dtype=base_probs.dtype)
+
+    for layer in range(num_layers):
+        for q in range(n_qubits):
+            shift_mat = np.zeros_like(params)
+            shift_mat[layer, q] = eps
+            if adaptive:
+                plus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_qubits=n_qubits,
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+                minus_circ = adaptive_data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_qubits=n_qubits,
+                    n_output_qubits=n_output_qubits,
+                    features_per_layer=features_per_layer,
+                    lambdas=lambdas,
+                    gamma=gamma,
+                    delta=delta,
+                )
+            elif amplitude:
+                plus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = amplitude_data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+            else:
+                plus_circ = data_to_circuit(
+                    angles,
+                    params + shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+                minus_circ = data_to_circuit(
+                    angles,
+                    params - shift_mat,
+                    entangling=entangling,
+                    n_output_qubits=n_output_qubits,
+                )
+            plus_probs = circuit_state_probs(plus_circ, qargs=qargs, shots=shots)
+            minus_probs = circuit_state_probs(minus_circ, qargs=qargs, shots=shots)
+            grad = (plus_probs - minus_probs) / (2 * eps)
+            grads[layer, q] = grad
+
+    return base_probs, grads
+
+
 def adaptive_entangling_circuit(
     x,
     *,
