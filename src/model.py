@@ -10,7 +10,6 @@ from quantum_utils import (
     amplitude_data_to_circuit,
     circuit_state_probs,
     parameter_shift_gradients,
-    QuantumCircuit,
 )
 
 
