@@ -49,7 +49,7 @@ RUN_LR = 0.1
 # Checkpoint settings
 # Base file name used when saving models. The epoch number is appended
 # to this value (without extension) whenever a checkpoint is written.
-MODEL_FILE_NAME = "trained_quantum_llp"
+MODEL_FILE_NAME = "trained_quantum_llp" + "qbit" + str(NUM_QUBITS) + "_param" +str(NUM_LAYERS)
 # Optional checkpoint to load before training starts. When empty the
 # model is initialised from scratch.
 START_MODEL_FILE_NAME = ""
