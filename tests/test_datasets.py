@@ -27,6 +27,14 @@ def test_transform_output_size():
     assert out.shape[0] == config.ENCODING_DIM
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires CUDA for DINOv2/xFormers attention")
+def test_transform_grayscale():
+    transform = get_transform()
+    x = torch.randn(1, 28, 28)
+    out = transform(x)
+    assert out.shape[0] == config.ENCODING_DIM
+
+
 def test_compute_proportions():
     labels = torch.tensor([0, 1, 1, 2, 3, 3])
     props = compute_proportions(labels, 4)
