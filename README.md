@@ -25,6 +25,8 @@ Quantum Learning from Label Proportion
 GPU 利用時にワーカーを有効にするため、スクリプト冒頭で
 `torch.multiprocessing.set_start_method("spawn")` を呼び出しています。
 特徴量を事前計算してメモリに展開するには `config.PRELOAD_DATASET` を `True` に設定します。
+PCA 圧縮前後の特徴量を保存したい場合は `config.PRELOAD_SAVE_BEFORE` および
+`config.PRELOAD_SAVE_AFTER` にファイルパスを指定してください。
 
 学習済みモデルから量子回路図を描画するには `plot_circuit.py` を使用します。(configはrun.py実行時と同じに)
 以下のように実行すると `circuit.png` に図が保存されます。

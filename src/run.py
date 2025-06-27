@@ -39,6 +39,8 @@ def main() -> None:
         PIN_MEMORY,
         PRELOAD_DATASET,
         PRELOAD_BATCH_SIZE,
+        PRELOAD_SAVE_BEFORE,
+        PRELOAD_SAVE_AFTER,
         MODEL_FILE_NAME,
         START_MODEL_FILE_NAME,
         SAVE_MODEL_EPOCH_NUM,
@@ -81,12 +83,16 @@ def main() -> None:
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading training subset features...",
             pca_dim=FEATURES_PER_LAYER,
+            save_before=PRELOAD_SAVE_BEFORE,
+            save_after=PRELOAD_SAVE_AFTER,
         )
         val_subset = preload_dataset(
             val_subset,
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading validation subset features...",
             pca_dim=FEATURES_PER_LAYER,
+            save_before=PRELOAD_SAVE_BEFORE,
+            save_after=PRELOAD_SAVE_AFTER,
         )
 
     test_indices = filter_indices_by_class(test_dataset, NUM_CLASSES)[:TEST_SUBSET_SIZE]
@@ -97,6 +103,8 @@ def main() -> None:
             batch_size=PRELOAD_BATCH_SIZE,
             desc="Preloading test subset features...",
             pca_dim=FEATURES_PER_LAYER,
+            save_before=PRELOAD_SAVE_BEFORE,
+            save_after=PRELOAD_SAVE_AFTER,
         )
     test_loader = DataLoader(
         test_subset,
