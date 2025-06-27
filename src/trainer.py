@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import config
 from config import (
     DEFAULT_EPOCHS,
     DEFAULT_LR,
@@ -34,6 +35,8 @@ def train_model(
 ):
     """Train model while recreating bags every epoch."""
     model.to(device)
+    if hasattr(model, "grad_method"):
+        model.grad_method = getattr(config, "GRADIENT_METHOD", model.grad_method)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()  # L2 loss between predicted and teacher class proportions
 

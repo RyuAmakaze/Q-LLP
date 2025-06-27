@@ -43,6 +43,7 @@ def main() -> None:
         START_MODEL_FILE_NAME,
         SAVE_MODEL_EPOCH_NUM,
         USE_AMPLITUDE_ENCODING,
+        GRADIENT_METHOD,
     )
 
     # Allow PyTorch to utilise multiple CPU cores for forward passes
@@ -118,6 +119,7 @@ def main() -> None:
         n_output_qubits=NUM_OUTPUT_QUBITS,
         adaptive=not USE_AMPLITUDE_ENCODING,
         amplitude_encoding=USE_AMPLITUDE_ENCODING,
+        gradient_method=GRADIENT_METHOD,
     ).to(DEVICE)
 
     start_epoch = 0

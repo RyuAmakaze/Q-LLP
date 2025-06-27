@@ -55,8 +55,9 @@ docker run --rm --gpus all -v $(pwd):/app -w /app -it q-llp bash
 pytest
 ```
 
-Multi-layer or entangling quantum circuits are now differentiated using the
-parameter-shift rule.
+Multi-layer or entangling quantum circuits are differentiable using either
+the parameter-shift rule or a finite-difference approximation. The method can
+be selected via `config.GRADIENT_METHOD`.
 
 ### Dedicated output qubits
 
