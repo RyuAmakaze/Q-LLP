@@ -303,8 +303,33 @@ def preload_dataset(
     desc: str = "Preloading dataset",
     *,
     pca_dim: int | None = None,
+    save_before: str | None = None,
+    save_after: str | None = None,
 ) -> torch.utils.data.TensorDataset:
-    """Load all features and labels into memory with optional PCA compression."""
+    """Load all features and labels with optional PCA compression.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Dataset to load.
+    batch_size : int, optional
+        Number of samples per batch when reading from ``dataset``.
+    desc : str, optional
+        Progress message to print during loading.
+    pca_dim : int | None, optional
+        If given, features are reduced to this dimension using PCA.
+    save_before : str | None, optional
+        Path to save features **before** PCA is applied.  When ``None``
+        (default) the features are not saved.
+    save_after : str | None, optional
+        Path to save features **after** PCA has been applied.  When
+        ``None`` (default) the features are not saved.
+
+    Returns
+    -------
+    TensorDataset
+        Dataset containing the (optionally PCA-transformed) features and labels.
+    """
     from torch.utils.data import DataLoader, TensorDataset
 
     loader = DataLoader(
@@ -332,6 +357,9 @@ def preload_dataset(
     features = torch.cat(all_x)
     labels = torch.cat(all_y)
 
+    if save_before is not None:
+        torch.save({"features": features, "labels": labels}, save_before)
+
     if pca_dim is not None and features.shape[1] > pca_dim:
         mean = features.mean(dim=0)
         centered = features - mean
@@ -340,5 +368,8 @@ def preload_dataset(
             _, _, v = torch.pca_lowrank(centered, q=q)
             components = v[:, :pca_dim]
             features = (features - mean) @ components
+
+    if save_after is not None:
+        torch.save({"features": features, "labels": labels}, save_after)
 
     return TensorDataset(features, labels)

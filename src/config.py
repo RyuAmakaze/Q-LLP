@@ -21,6 +21,8 @@ PIN_MEMORY = torch.cuda.is_available()
 # Dataset preloading settings
 PRELOAD_DATASET = True
 PRELOAD_BATCH_SIZE = 512
+PRELOAD_SAVE_BEFORE = ""
+PRELOAD_SAVE_AFTER = ""
 
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

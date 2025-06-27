@@ -17,3 +17,23 @@ def test_preload_dataset_pca_reduces_dim():
     x0, _ = ds[0]
     assert x0.shape[0] == 5
     assert len(ds) == 10
+
+
+def test_preload_dataset_saves_features(tmp_path):
+    data = torch.randn(4, config.ENCODING_DIM)
+    labels = torch.arange(4)
+    dataset = torch.utils.data.TensorDataset(data, labels)
+    before = tmp_path / "before.pt"
+    after = tmp_path / "after.pt"
+    _ = preload_dataset(
+        dataset,
+        batch_size=2,
+        pca_dim=2,
+        save_before=str(before),
+        save_after=str(after),
+    )
+    before_data = torch.load(before)
+    after_data = torch.load(after)
+    assert torch.equal(before_data["features"], data)
+    assert torch.equal(before_data["labels"], labels)
+    assert after_data["features"].shape[1] == 2
