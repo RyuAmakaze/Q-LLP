@@ -21,7 +21,8 @@ LR = 0.1
 feature_map = ZZFeatureMap(feature_dimension=NUM_QUBITS)
 ansatz = TwoLocal(NUM_QUBITS, ['ry', 'rz'], 'cx', reps=NUM_LAYERS)
 
-vqc = VQC(feature_map=feature_map, ansatz=ansatz, optimizer=None)
+vqc = VQC(feature_map=feature_map, ansatz=ansatz,
+          optimizer=None, num_classes=NUM_CLASSES)
 nn = getattr(vqc, "neural_network", None)
 if nn is None:
     nn = getattr(vqc, "_neural_network")
