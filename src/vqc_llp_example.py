@@ -2,6 +2,8 @@ import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
 
+from data_utils import get_transform, filter_indices_by_class
+
 from qiskit_machine_learning.algorithms import VQC
 from qiskit_machine_learning.connectors import TorchConnector
 from qiskit.circuit.library import ZZFeatureMap, TwoLocal
@@ -27,17 +29,16 @@ if nn is None:
     nn = getattr(vqc, "_neural_network")
 model = TorchConnector(nn)
 
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Lambda(lambda x: x.view(-1)[:NUM_QUBITS])
-])
+transform = get_transform(use_dino=False)
+if isinstance(transform, transforms.Compose):
+    transform.transforms.append(transforms.Lambda(lambda x: x[:NUM_QUBITS]))
 
 dataset = datasets.CIFAR10(root=DATA_ROOT, train=True, download=True, transform=transform)
-indices = [i for i, t in enumerate(dataset.targets) if t < NUM_CLASSES][:SUBSET_SIZE]
+indices = filter_indices_by_class(dataset, NUM_CLASSES)[:SUBSET_SIZE]
 train_subset = Subset(dataset, indices)
 
 val_dataset = datasets.CIFAR10(root=DATA_ROOT, train=False, download=True, transform=transform)
-val_indices = [i for i, t in enumerate(val_dataset.targets) if t < NUM_CLASSES][:TEST_SUBSET_SIZE]
+val_indices = filter_indices_by_class(val_dataset, NUM_CLASSES)[:TEST_SUBSET_SIZE]
 val_subset = Subset(val_dataset, val_indices)
 
 train_loader = DataLoader(train_subset, batch_size=BAG_SIZE, shuffle=True)
