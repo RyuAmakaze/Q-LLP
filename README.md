@@ -9,7 +9,7 @@ Quantum Learning from Label Proportion
    ```
 2. 依存パッケージをインストールします。
    ```bash
-   pip install torch torchvision qiskit pytest
+   pip install torch torchvision qiskit qiskit-machine-learning pytest
    ```
 3. 学習を実行します。
    ```bash
