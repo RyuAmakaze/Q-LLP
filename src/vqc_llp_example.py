@@ -3,6 +3,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
 
 from qiskit_machine_learning.algorithms import VQC
+from qiskit_machine_learning.connectors import TorchConnector
 from qiskit.circuit.library import ZZFeatureMap, TwoLocal
 
 # --- Configuration ---
@@ -21,6 +22,10 @@ feature_map = ZZFeatureMap(feature_dimension=NUM_QUBITS)
 ansatz = TwoLocal(NUM_QUBITS, ['ry', 'rz'], 'cx', reps=NUM_LAYERS)
 
 vqc = VQC(feature_map=feature_map, ansatz=ansatz, optimizer=None)
+nn = getattr(vqc, "neural_network", None)
+if nn is None:
+    nn = getattr(vqc, "_neural_network")
+model = TorchConnector(nn)
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -38,32 +43,30 @@ val_subset = Subset(val_dataset, val_indices)
 train_loader = DataLoader(train_subset, batch_size=BAG_SIZE, shuffle=True)
 val_loader = DataLoader(val_subset, batch_size=BAG_SIZE)
 
-optim = torch.optim.Adam(vqc._neural_network.parameters(), lr=LR)
+optim = torch.optim.Adam(model.parameters(), lr=LR)
 loss_fn = torch.nn.MSELoss()
 
 for epoch in range(EPOCHS):
-    vqc._neural_network.train()
+    model.train()
     for x, y in train_loader:
         batch_size = x.size(0)
-        x = x.numpy()
-        y = torch.tensor(y)
         labels = torch.nn.functional.one_hot(y, NUM_CLASSES).float()
         teacher = labels.mean(dim=0)
 
         optim.zero_grad()
-        preds = vqc._neural_network.forward(x)
-        bag_pred = torch.tensor(preds).mean(dim=0)
+        preds = model(x)
+        bag_pred = preds.mean(dim=0)
         loss = loss_fn(bag_pred, teacher)
         loss.backward()
         optim.step()
 
-    vqc._neural_network.eval()
+    model.eval()
     with torch.no_grad():
         total = 0
         correct = 0
         for x, y in val_loader:
-            preds = vqc._neural_network.forward(x.numpy())
-            pred_class = torch.tensor(preds).argmax(dim=1)
+            preds = model(x)
+            pred_class = preds.argmax(dim=1)
             correct += (pred_class == y).sum().item()
             total += y.size(0)
         print(f'Epoch {epoch+1} Acc {correct/total:.3f}')
