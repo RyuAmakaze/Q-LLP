@@ -31,7 +31,8 @@ jobs:
                 pylatexenc \
                 qiskit-aer \
                 xformers \
-                debugpy &&
+                debugpy \
+                qiskit-machine-learning &&
               # テストを実行
               pytest
             "
