@@ -1,3 +1,4 @@
+import argparse
 import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
@@ -5,9 +6,13 @@ from torch.utils.data import DataLoader, Subset
 from qiskit_machine_learning.algorithms import VQC
 from qiskit_machine_learning.connectors import TorchConnector
 from qiskit.circuit.library import ZZFeatureMap, TwoLocal
+from qiskit.quantum_info import Statevector
+
+from data_utils import get_transform, preload_dataset
+from quantum_utils import amplitude_encoding
 
 # --- Configuration ---
-DATA_ROOT = './data'
+DATA_ROOT = "./data"
 NUM_CLASSES = 4
 SUBSET_SIZE = 100
 TEST_SUBSET_SIZE = 30
@@ -17,9 +22,31 @@ NUM_LAYERS = 2
 EPOCHS = 3
 LR = 0.1
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Simple VQC LLP example")
+    parser.add_argument(
+        "--use-dino",
+        action="store_true",
+        help="use get_transform(use_dino=True) for feature extraction",
+    )
+    parser.add_argument(
+        "--preload",
+        action="store_true",
+        help="preload dataset and apply PCA to NUM_QUBITS dimensions",
+    )
+    parser.add_argument(
+        "--amplitude",
+        action="store_true",
+        help="encode data using quantum_utils.amplitude_encoding",
+    )
+    return parser.parse_args()
+
+args = parse_args()
+
 # VQC feature map and ansatz
 feature_map = ZZFeatureMap(feature_dimension=NUM_QUBITS)
-ansatz = TwoLocal(NUM_QUBITS, ['ry', 'rz'], 'cx', reps=NUM_LAYERS)
+ansatz = TwoLocal(NUM_QUBITS, ["ry", "rz"], "cx", reps=NUM_LAYERS)
 
 vqc = VQC(feature_map=feature_map, ansatz=ansatz, optimizer=None, output_shape=NUM_CLASSES)
 nn = getattr(vqc, "neural_network", None)
@@ -27,10 +54,24 @@ if nn is None:
     nn = getattr(vqc, "_neural_network")
 model = TorchConnector(nn)
 
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Lambda(lambda x: x.view(-1)[:NUM_QUBITS])
-])
+if args.use_dino:
+    transform = get_transform(use_dino=True)
+else:
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
+    )
+
+if args.amplitude:
+    def amp_feat(v):
+        qc = amplitude_encoding(v, n_qubits=NUM_QUBITS)
+        sv = Statevector.from_instruction(qc)
+        return torch.tensor(sv.data.real[:NUM_QUBITS])
+
+    transform = transforms.Compose([transform, transforms.Lambda(amp_feat)])
+else:
+    transform = transforms.Compose(
+        [transform, transforms.Lambda(lambda x: x[:NUM_QUBITS])]
+    )
 
 dataset = datasets.CIFAR10(root=DATA_ROOT, train=True, download=True, transform=transform)
 indices = [i for i, t in enumerate(dataset.targets) if t < NUM_CLASSES][:SUBSET_SIZE]
@@ -39,6 +80,10 @@ train_subset = Subset(dataset, indices)
 val_dataset = datasets.CIFAR10(root=DATA_ROOT, train=False, download=True, transform=transform)
 val_indices = [i for i, t in enumerate(val_dataset.targets) if t < NUM_CLASSES][:TEST_SUBSET_SIZE]
 val_subset = Subset(val_dataset, val_indices)
+
+if args.preload:
+    train_subset = preload_dataset(train_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
+    val_subset = preload_dataset(val_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
 
 train_loader = DataLoader(train_subset, batch_size=BAG_SIZE, shuffle=True)
 val_loader = DataLoader(val_subset, batch_size=BAG_SIZE)

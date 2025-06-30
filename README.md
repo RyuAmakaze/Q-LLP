@@ -90,3 +90,17 @@ python src/vqc_llp_example.py
 ```
 
 CIFAR10 の一部を用いて学習し、テスト精度が表示されます。
+
+#### DINO 特徴量と振幅エンコーディングを使用する
+
+`vqc_llp_example.py` では以下のフラグを指定することで DINO 特徴量の利用や
+PCA 圧縮、振幅エンコーディングを試すことができます。
+
+```bash
+python src/vqc_llp_example.py --use-dino --preload --amplitude
+```
+
+`--use-dino` は `get_transform(use_dino=True)` を、`--preload` は
+`preload_dataset(..., pca_dim=NUM_QUBITS)` を適用します。
+`--amplitude` を指定すると各サンプルを `quantum_utils.amplitude_encoding`
+で量子状態に変換してから学習を行います。
