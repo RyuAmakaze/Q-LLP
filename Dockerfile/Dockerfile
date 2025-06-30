@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir \
     pylatexenc \
     qiskit-aer-gpu \
     xformers \
-    debugpy
+    debugpy \
+    qiskit-machine-learning
 
 # Copy your project code
 COPY . /app
