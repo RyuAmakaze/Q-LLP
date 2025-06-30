@@ -79,3 +79,14 @@ Setting `config.USE_AMPLITUDE_ENCODING = True` enables amplitude-based
 state preparation for input features. The feature vector is normalised and
 padded or truncated to the available qubits before being used to
 initialise the quantum state via `QuantumCircuit.initialize`.
+
+### VQC を用いた LLP のサンプル
+
+`qiskit-machine-learning` がインストールされていれば `src/vqc_llp_example.py`
+で VQC を使った簡単な LLP 学習を試すことができます。以下のように実行します。
+
+```bash
+python src/vqc_llp_example.py
+```
+
+CIFAR10 の一部を用いて学習し、テスト精度が表示されます。
