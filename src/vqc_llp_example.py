@@ -13,13 +13,6 @@ from tqdm import tqdm
 from data_utils import get_transform, preload_dataset
 from quantum_utils import amplitude_encoding
 
-
-def amplitude_to_real(v, n_qubits: int = NUM_QUBITS) -> torch.Tensor:
-    """Encode ``v`` as amplitudes and return the real part of the statevector."""
-    qc = amplitude_encoding(v, n_qubits=n_qubits)
-    sv = Statevector.from_instruction(qc)
-    return torch.tensor(sv.data.real[:n_qubits])
-
 # --- Configuration ---
 DATA_ROOT = "./data"
 NUM_CLASSES = 4
@@ -31,6 +24,11 @@ NUM_LAYERS = 5
 EPOCHS = 3
 LR = 0.1
 
+def amplitude_to_real(v, n_qubits: int = NUM_QUBITS) -> torch.Tensor:
+    """Encode ``v`` as amplitudes and return the real part of the statevector."""
+    qc = amplitude_encoding(v, n_qubits=n_qubits)
+    sv = Statevector.from_instruction(qc)
+    return torch.tensor(sv.data.real[:n_qubits])
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple VQC LLP example")
