@@ -13,6 +13,13 @@ from tqdm import tqdm
 from data_utils import get_transform, preload_dataset
 from quantum_utils import amplitude_encoding
 
+
+def amplitude_to_real(v, n_qubits: int = NUM_QUBITS) -> torch.Tensor:
+    """Encode ``v`` as amplitudes and return the real part of the statevector."""
+    qc = amplitude_encoding(v, n_qubits=n_qubits)
+    sv = Statevector.from_instruction(qc)
+    return torch.tensor(sv.data.real[:n_qubits])
+
 # --- Configuration ---
 DATA_ROOT = "./data"
 NUM_CLASSES = 4
@@ -67,12 +74,7 @@ def main():
         )
 
     if args.amplitude:
-        def amp_feat(v):
-            qc = amplitude_encoding(v, n_qubits=NUM_QUBITS)
-            sv = Statevector.from_instruction(qc)
-            return torch.tensor(sv.data.real[:NUM_QUBITS])
-
-        transform = transforms.Compose([transform, transforms.Lambda(amp_feat)])
+        transform = transforms.Compose([transform, transforms.Lambda(amplitude_to_real)])
     else:
         transform = transforms.Compose(
             [transform, transforms.Lambda(lambda x: x[:NUM_QUBITS])]
