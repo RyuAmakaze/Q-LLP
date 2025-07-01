@@ -49,6 +49,21 @@ def parse_args():
         action="store_true",
         help="encode data using quantum_utils.amplitude_encoding",
     )
+    parser.add_argument(
+        "--print-circuit",
+        action="store_true",
+        help="print the VQC circuit before training",
+    )
+    parser.add_argument(
+        "--save-circuit",
+        metavar="PATH",
+        help="path to save the circuit diagram as PNG",
+    )
+    parser.add_argument(
+        "--save-model",
+        metavar="PATH",
+        help="path to save the trained model state_dict",
+    )
     return parser.parse_args()
 
 args = parse_args()
@@ -66,6 +81,13 @@ def main():
     if nn is None:
         nn = getattr(vqc, "_neural_network")
     model = TorchConnector(nn).to(DEVICE)
+
+    circuit = feature_map.compose(ansatz)
+    if args.save_circuit:
+        circuit.draw(output="mpl", filename=args.save_circuit)
+        print(f"Circuit diagram saved to {args.save_circuit}")
+    elif args.print_circuit:
+        print(circuit.draw())
 
     if args.use_dino:
         transform = get_transform(use_dino=True)
@@ -128,6 +150,10 @@ def main():
                 correct += (pred_class == y).sum().item()
                 total += y.size(0)
             print(f'Epoch {epoch+1} Acc {correct/total:.3f}')
+
+    if args.save_model:
+        torch.save(model.state_dict(), args.save_model)
+        print(f"Model saved to {args.save_model}")
 
 if __name__ == "__main__":
     main()
