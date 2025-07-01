@@ -55,6 +55,11 @@ def parse_args():
         help="print the VQC circuit before training",
     )
     parser.add_argument(
+        "--save-circuit",
+        metavar="PATH",
+        help="path to save the circuit diagram as PNG",
+    )
+    parser.add_argument(
         "--save-model",
         metavar="PATH",
         help="path to save the trained model state_dict",
@@ -77,8 +82,12 @@ def main():
         nn = getattr(vqc, "_neural_network")
     model = TorchConnector(nn).to(DEVICE)
 
-    if args.print_circuit:
-        print(feature_map.compose(ansatz).draw())
+    circuit = feature_map.compose(ansatz)
+    if args.save_circuit:
+        circuit.draw(output="mpl", filename=args.save_circuit)
+        print(f"Circuit diagram saved to {args.save_circuit}")
+    elif args.print_circuit:
+        print(circuit.draw())
 
     if args.use_dino:
         transform = get_transform(use_dino=True)

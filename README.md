@@ -92,9 +92,9 @@ python src/vqc_llp_example.py
 CIFAR10 の一部を用いて学習し、テスト精度が表示されます。
 CUDA が利用可能な環境では自動的に GPU を使用して計算します。
 
-`--print-circuit` オプションを付けると、使用している VQC の回路図が
-テキストとして表示されます。`--save-model <path>` を指定すると学習後
-の重みを保存できます。
+`--save-circuit <path>` を指定すると、VQC の回路図を PNG 形式で保存でき
+ます。`--print-circuit` を付けるとテキストとして表示されます。
+`--save-model <path>` を指定すると学習後の重みを保存できます。
 
 #### DINO 特徴量と振幅エンコーディングを使用する
 
