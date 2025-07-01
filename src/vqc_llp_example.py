@@ -10,6 +10,8 @@ from qiskit.quantum_info import Statevector
 
 from tqdm import tqdm
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 from data_utils import get_transform, preload_dataset
 from quantum_utils import amplitude_encoding
 
@@ -53,6 +55,7 @@ args = parse_args()
 
 def main():
     print("args", args)
+    print("DEVICE", DEVICE)
     
     # VQC feature map and ansatz
     feature_map = ZZFeatureMap(feature_dimension=NUM_QUBITS)
@@ -62,7 +65,7 @@ def main():
     nn = getattr(vqc, "neural_network", None)
     if nn is None:
         nn = getattr(vqc, "_neural_network")
-    model = TorchConnector(nn)
+    model = TorchConnector(nn).to(DEVICE)
 
     if args.use_dino:
         transform = get_transform(use_dino=True)
@@ -100,6 +103,8 @@ def main():
     for epoch in range(EPOCHS):
         model.train()
         for x, y in tqdm(train_loader):
+            x = x.to(DEVICE)
+            y = y.to(DEVICE)
             batch_size = x.size(0)
             labels = torch.nn.functional.one_hot(y, NUM_CLASSES).float()
             teacher = labels.mean(dim=0)
@@ -116,6 +121,8 @@ def main():
             total = 0
             correct = 0
             for x, y in tqdm(val_loader):
+                x = x.to(DEVICE)
+                y = y.to(DEVICE)
                 preds = model(x)
                 pred_class = preds.argmax(dim=1)
                 correct += (pred_class == y).sum().item()
