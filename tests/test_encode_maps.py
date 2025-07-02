@@ -17,7 +17,7 @@ def test_get_feature_map_returns_correct_class():
     assert isinstance(fm, ZZFeatureMap)
 
 
-@pytest.mark.parametrize("name", ["npqc", "yzcx", "adaptive"])
+@pytest.mark.parametrize("name", ["npqc", "yzcx", "adaptive", "amplitude"])
 def test_get_feature_map_custom(name):
     fm = get_feature_map(name, 4)
     assert isinstance(fm, QuantumCircuit)
