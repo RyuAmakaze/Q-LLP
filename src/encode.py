@@ -113,7 +113,7 @@ AVAILABLE_MAPS = {
     "zz": ZZFeatureMap,
     "z": ZFeatureMap,
     "pauli": lambda num_qubits: PauliFeatureMap(feature_dimension=num_qubits, paulis=["X", "Z"]),
-    "adaptive": adaptive_feature_map,
+    "adaptive": lambda n: adaptive_feature_map(n, features_per_layer=n),
     "npqc": npqc_feature_map,
     "yzcx": yzcx_feature_map,
     "amplitude": amplitude_feature_map,
