@@ -1,4 +1,5 @@
 import argparse
+import functools
 import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
@@ -32,6 +33,16 @@ def amplitude_to_real(v, n_qubits: int = NUM_QUBITS) -> torch.Tensor:
     qc = amplitude_encoding(v, n_qubits=n_qubits)
     sv = Statevector.from_instruction(qc)
     return torch.tensor(sv.data.real[:n_qubits])
+
+
+def _apply_transform(x, base_transform, n):
+    """Apply ``base_transform`` to ``x`` and truncate to ``n`` elements."""
+    return base_transform(x)[:n]
+
+
+def _flatten_truncate(tensor, n):
+    """Flatten ``tensor`` and truncate to ``n`` elements."""
+    return tensor.view(-1)[:n]
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple VQC LLP example")
@@ -100,10 +111,10 @@ def main():
 
     if args.use_dino:
         base_transform = get_transform(use_dino=True)
-        transform = lambda x, bt=base_transform, n=feature_dim: bt(x)[:n]
+        transform = functools.partial(_apply_transform, base_transform=base_transform, n=feature_dim)
     else:
         transform = transforms.Compose(
-            [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1)[:feature_dim])]
+            [transforms.ToTensor(), transforms.Lambda(functools.partial(_flatten_truncate, n=feature_dim))]
         )
 
     dataset = datasets.CIFAR10(root=DATA_ROOT, train=True, download=True, transform=transform)
