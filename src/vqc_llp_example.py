@@ -96,13 +96,6 @@ def main():
             [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
         )
 
-    if args.amplitude:
-        transform = transforms.Compose([transform, transforms.Lambda(amplitude_to_real)])
-    else:
-        transform = transforms.Compose(
-            [transform, transforms.Lambda(lambda x: x[:NUM_QUBITS])]
-        )
-
     dataset = datasets.CIFAR10(root=DATA_ROOT, train=True, download=True, transform=transform)
     indices = [i for i, t in enumerate(dataset.targets) if t < NUM_CLASSES][:SUBSET_SIZE]
     train_subset = Subset(dataset, indices)
