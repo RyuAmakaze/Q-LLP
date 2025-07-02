@@ -109,3 +109,5 @@ python src/vqc_llp_example.py --use-dino --preload --amplitude
 `preload_dataset(..., pca_dim=NUM_QUBITS)` を適用します。
 `--amplitude` を指定すると各サンプルを `quantum_utils.amplitude_encoding`
 で量子状態に変換してから学習を行います。
+`--feature-map` には `zz` や `pauli` などの名前を指定して異なる
+フィーチャーマップを試すこともできます。
