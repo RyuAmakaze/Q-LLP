@@ -1,4 +1,5 @@
 import numpy as np
+import config
 from qiskit.circuit import QuantumCircuit, ParameterVector
 from qiskit.circuit.library import (
     ZZFeatureMap,
@@ -6,7 +7,7 @@ from qiskit.circuit.library import (
     PauliFeatureMap,
 )
 
-from quantum_utils import multi_rz
+from quantum_utils import multi_rz, amplitude_encoding
 
 try:  # Qiskit <2.0 uses IsingXYGate, >=2.0 renamed it
     from qiskit.circuit.library import IsingXYGate
@@ -16,55 +17,66 @@ except Exception:  # pragma: no cover - handle version differences
     except Exception:  # pragma: no cover - final fallback
         from qiskit.circuit.library import XYGate as IsingXYGate
 
-def adaptive_feature_map(num_qubits: int,
-                         lambda_factors=None,
-                         delta_weights=None,
-                         gamma: float = 0.5) -> QuantumCircuit:
-    """Return the adaptive single-axis feature map circuit."""
+def adaptive_feature_map(
+    num_qubits: int,
+    *,
+    features_per_layer: int | None = None,
+    lambdas=None,
+    gamma: float = 1.0,
+    delta: float = 1.0,
+) -> QuantumCircuit:
+    """Return the adaptive single-axis feature map circuit.
 
-    expected_length = 5 * 16
-    if lambda_factors is None:
-        lambda_factors = [0.3] * 5
-    if delta_weights is None:
-        delta_weights = [0.15, 0.25, 0.35, 0.15, 0.10]
+    This implementation mirrors ``quantum_utils.adaptive_entangling_circuit``
+    but uses symbolic parameters for compatibility with VQC.
+    """
 
-    x = ParameterVector("x", expected_length)
+    if features_per_layer is None:
+        features_per_layer = config.FEATURES_PER_LAYER
+
+    x = ParameterVector("x", features_per_layer)
+
+    if lambdas is None:
+        lambdas = np.ones(num_qubits)
+    else:
+        lambdas = np.asarray(lambdas, dtype=float)
+
     qc = QuantumCircuit(num_qubits)
 
-    for l in range(5):
-        base = 16 * l
+    # Stage 0: local encoding
+    for j in range(num_qubits):
+        qc.ry(np.pi * x[j % features_per_layer], j)
 
-        for j in range(num_qubits):
-            qc.ry(np.pi * x[base + j], j)
+    # Stage 1: immediate neighbor entanglement
+    for j in range(num_qubits):
+        x_a = x[j % features_per_layer]
+        x_b = x[(j + 1) % features_per_layer]
+        angle = np.pi * (0.5 * x_a + 0.5 * x_b + 0.1 * (x_a - x_b))
+        qc.crx(angle, j, (j + 1) % num_qubits)
 
-        for j in range(num_qubits):
-            idx_a = base + 10 + (j % 6)
-            idx_b = base + 10 + ((j + 1) % 6)
-            angle = np.pi * (0.5 * x[idx_a] + 0.5 * x[idx_b] + 0.1 * (x[idx_a] - x[idx_b]))
-            qc.crx(angle, j, (j + 1) % num_qubits)
+    # Stage 2: next-nearest neighbor correlations
+    for j in range(num_qubits):
+        vals = [x[j % features_per_layer], x[(j + 1) % features_per_layer], x[(j + 2) % features_per_layer]]
+        avg = sum(vals) / 3
+        qc.cry(np.pi * avg, j, (j + 2) % num_qubits)
 
-        for j in range(num_qubits):
-            idx1 = base + 10 + (j % 6)
-            idx2 = base + 10 + ((j + 2) % 6)
-            idx3 = base + 10 + ((j + 4) % 6)
-            avg_triple = (x[idx1] + x[idx2] + x[idx3]) / 3
-            qc.cry(np.pi * avg_triple, j, (j + 2) % num_qubits)
+    # Stage 3: adaptive CRot with layer-dependent scaling
+    for j in range(num_qubits):
+        x_a = x[j % features_per_layer]
+        x_b = x[(j + 1) % features_per_layer]
+        scale = lambdas[j % len(lambdas)]
+        angle = np.pi * scale * 0.5 * (x_a + x_b)
+        qc.cu(angle, 0.0, 0.0, 0.0, j, (j + 3) % num_qubits)
 
-        for j in range(num_qubits):
-            idx_a = base + 10 + (j % 6)
-            idx_b = base + 10 + ((j + 1) % 6)
-            pair_avg = 0.5 * (x[idx_a] + x[idx_b])
-            angle = np.pi * lambda_factors[l] * pair_avg
-            qc.cu(angle, 0.0, 0.0, 0.0, j, (j + 3) % num_qubits)
+    # Stage 4: long-range entanglement via IsingXY-like coupling
+    half = num_qubits // 2
+    for j in range(half):
+        qc.append(IsingXYGate(np.pi * gamma), [j, j + half])
 
-        for j in range(num_qubits // 2):
-            qc.append(IsingXYGate(np.pi * gamma), [j, j + num_qubits // 2])
-
-    global_sum = 0
-    for l in range(5):
-        global_sum = global_sum + delta_weights[l] * x[16 * l + 10]
-    global_angle = np.pi * global_sum
+    # Stage 5: global multi-qubit rotation
+    global_angle = np.pi * delta * x[min(features_per_layer - 1, len(x) - 1)]
     multi_rz(qc, list(range(num_qubits)), global_angle)
+
     return qc
 
 
@@ -91,13 +103,20 @@ def yzcx_feature_map(num_qubits: int) -> QuantumCircuit:
     return qc
 
 
+def amplitude_feature_map(num_qubits: int) -> QuantumCircuit:
+    """Prepare an equal superposition state on ``num_qubits``."""
+    vec = np.ones(2 ** num_qubits)
+    return amplitude_encoding(vec, n_qubits=num_qubits)
+
+
 AVAILABLE_MAPS = {
     "zz": ZZFeatureMap,
     "z": ZFeatureMap,
     "pauli": lambda num_qubits: PauliFeatureMap(feature_dimension=num_qubits, paulis=["X", "Z"]),
-    "adaptive": adaptive_feature_map,
+    "adaptive": lambda n: adaptive_feature_map(n, features_per_layer=n),
     "npqc": npqc_feature_map,
     "yzcx": yzcx_feature_map,
+    "amplitude": amplitude_feature_map,
 }
 
 
