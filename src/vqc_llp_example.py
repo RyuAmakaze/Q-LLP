@@ -83,6 +83,8 @@ def main():
     feature_map = get_feature_map(args.feature_map, NUM_QUBITS)
     ansatz = TwoLocal(NUM_QUBITS, ["ry", "rz"], "cx", reps=NUM_LAYERS)
 
+    feature_dim = len(feature_map.parameters)
+
     vqc = VQC(feature_map=feature_map, ansatz=ansatz, optimizer=None, output_shape=NUM_CLASSES)
     nn = getattr(vqc, "neural_network", None)
     if nn is None:
@@ -97,10 +99,11 @@ def main():
         print(circuit.draw())
 
     if args.use_dino:
-        transform = get_transform(use_dino=True)
+        base_transform = get_transform(use_dino=True)
+        transform = lambda x, bt=base_transform, n=feature_dim: bt(x)[:n]
     else:
         transform = transforms.Compose(
-            [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))]
+            [transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1)[:feature_dim])]
         )
 
     dataset = datasets.CIFAR10(root=DATA_ROOT, train=True, download=True, transform=transform)
@@ -112,8 +115,8 @@ def main():
     val_subset = Subset(val_dataset, val_indices)
 
     if args.preload:
-        train_subset = preload_dataset(train_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
-        val_subset = preload_dataset(val_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
+        train_subset = preload_dataset(train_subset, batch_size=BAG_SIZE, pca_dim=feature_dim)
+        val_subset = preload_dataset(val_subset, batch_size=BAG_SIZE, pca_dim=feature_dim)
 
     train_loader = DataLoader(train_subset, batch_size=BAG_SIZE, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=BAG_SIZE)
