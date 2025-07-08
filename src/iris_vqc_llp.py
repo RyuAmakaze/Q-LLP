@@ -25,16 +25,9 @@ def main() -> None:
     sampler = Sampler()
 
     objective_func_vals = []
-    plt.rcParams["figure.figsize"] = (12, 6)
 
     def callback_graph(weights, obj_func_eval):
-        clear_output(wait=True)
         objective_func_vals.append(obj_func_eval)
-        plt.title("Objective function value against iteration")
-        plt.xlabel("Iteration")
-        plt.ylabel("Objective function value")
-        plt.plot(range(len(objective_func_vals)), objective_func_vals)
-        
 
     vqc = VQC(
         sampler=sampler,
@@ -54,8 +47,13 @@ def main() -> None:
     print(f"Training time: {round(elapsed)} seconds")
     print(f"Quantum VQC on the training dataset: {train_score_q4:.2f}")
     print(f"Quantum VQC on the test dataset:     {test_score_q4:.2f}")
-    plt.savefig("iris_vqc.png")
+    
 
+    # main() の最後に追加
+    plt.rcParams["figure.figsize"] = (12, 6)
+    print(objective_func_vals)
+    plt.plot(range(len(objective_func_vals)), objective_func_vals)
+    plt.savefig("iris_vqc.png")
 
 if __name__ == "__main__":
     main()
