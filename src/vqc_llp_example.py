@@ -5,7 +5,8 @@ from torch.utils.data import DataLoader, Subset
 
 from qiskit_machine_learning.algorithms import VQC
 from qiskit_machine_learning.connectors import TorchConnector
-from qiskit.circuit.library import ZZFeatureMap, TwoLocal
+from qiskit.circuit.library import TwoLocal
+from encode import get_feature_map, AVAILABLE_MAPS
 from qiskit.quantum_info import Statevector
 
 from tqdm import tqdm
@@ -50,6 +51,12 @@ def parse_args():
         help="encode data using quantum_utils.amplitude_encoding",
     )
     parser.add_argument(
+        "--feature-map",
+        default="zz",
+        choices=sorted(AVAILABLE_MAPS.keys()),
+        help="name of the feature map to use",
+    )
+    parser.add_argument(
         "--print-circuit",
         action="store_true",
         help="print the VQC circuit before training",
@@ -73,7 +80,7 @@ def main():
     print("DEVICE", DEVICE)
     
     # VQC feature map and ansatz
-    feature_map = ZZFeatureMap(feature_dimension=NUM_QUBITS)
+    feature_map = get_feature_map(args.feature_map, NUM_QUBITS)
     ansatz = TwoLocal(NUM_QUBITS, ["ry", "rz"], "cx", reps=NUM_LAYERS)
 
     vqc = VQC(feature_map=feature_map, ansatz=ansatz, optimizer=None, output_shape=NUM_CLASSES)
