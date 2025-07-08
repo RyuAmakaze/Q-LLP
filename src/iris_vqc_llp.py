@@ -4,16 +4,18 @@ from sklearn.model_selection import train_test_split
 from qiskit.circuit.library import ZZFeatureMap, RealAmplitudes
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import Sampler
+from qiskit_algorithms.utils import algorithm_globals
 from qiskit_machine_learning.algorithms.classifiers import VQC
 from matplotlib import pyplot as plt
-from IPython.display import clear_output
+from sklearn.preprocessing import MinMaxScaler
 
 def main() -> None:
     data = load_iris()
     X = data.data
     y = data.target
+    X = MinMaxScaler().fit_transform(X)
     train_features, test_features, train_labels, test_labels = train_test_split(
-        X, y, test_size=0.2, random_state=0
+        X, y, test_size=0.2, random_state=algorithm_globals.random_seed
     )
 
     num_features = train_features.shape[1]
