@@ -5,7 +5,8 @@ from qiskit.circuit.library import ZZFeatureMap, RealAmplitudes
 from qiskit_algorithms.optimizers import COBYLA
 from qiskit.primitives import Sampler
 from qiskit_machine_learning.algorithms.classifiers import VQC
-
+from matplotlib import pyplot as plt
+from IPython.display import clear_output
 
 def main() -> None:
     data = load_iris()
@@ -24,9 +25,16 @@ def main() -> None:
     sampler = Sampler()
 
     objective_func_vals = []
+    plt.rcParams["figure.figsize"] = (12, 6)
 
-    def callback_graph(_weights, obj_func_eval):
+    def callback_graph(weights, obj_func_eval):
+        clear_output(wait=True)
         objective_func_vals.append(obj_func_eval)
+        plt.title("Objective function value against iteration")
+        plt.xlabel("Iteration")
+        plt.ylabel("Objective function value")
+        plt.plot(range(len(objective_func_vals)), objective_func_vals)
+        
 
     vqc = VQC(
         sampler=sampler,
@@ -40,9 +48,13 @@ def main() -> None:
     vqc.fit(train_features, train_labels)
     elapsed = time.time() - start
 
-    accuracy = vqc.score(test_features, test_labels)
+    train_score_q4 = vqc.score(train_features, train_labels)
+    test_score_q4 = vqc.score(test_features, test_labels)
+
     print(f"Training time: {round(elapsed)} seconds")
-    print(f"Test accuracy: {accuracy:.3f}")
+    print(f"Quantum VQC on the training dataset: {train_score_q4:.2f}")
+    print(f"Quantum VQC on the test dataset:     {test_score_q4:.2f}")
+    plt.savefig("iris_vqc.png")
 
 
 if __name__ == "__main__":
