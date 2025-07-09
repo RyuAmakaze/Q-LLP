@@ -111,9 +111,20 @@ def main():
     val_indices = [i for i, t in enumerate(val_dataset.targets) if t < NUM_CLASSES][:TEST_SUBSET_SIZE]
     val_subset = Subset(val_dataset, val_indices)
 
-    if args.preload:
-        train_subset = preload_dataset(train_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
-        val_subset = preload_dataset(val_subset, batch_size=BAG_SIZE, pca_dim=NUM_QUBITS)
+    if args.preload or args.use_dino:
+        # When using DINO features the raw dimensionality (ENCODING_DIM)
+        # does not match ``NUM_QUBITS`` required by the feature map.
+        # Reduce all features via PCA so VQC receives ``NUM_QUBITS`` inputs.
+        train_subset = preload_dataset(
+            train_subset,
+            batch_size=BAG_SIZE,
+            pca_dim=NUM_QUBITS,
+        )
+        val_subset = preload_dataset(
+            val_subset,
+            batch_size=BAG_SIZE,
+            pca_dim=NUM_QUBITS,
+        )
 
     train_loader = DataLoader(train_subset, batch_size=BAG_SIZE, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=BAG_SIZE)

@@ -99,14 +99,16 @@ CUDA が利用可能な環境では自動的に GPU を使用して計算しま�
 #### DINO 特徴量と振幅エンコーディングを使用する
 
 `vqc_llp_example.py` では以下のフラグを指定することで DINO 特徴量の利用や
-PCA 圧縮、振幅エンコーディングを試すことができます。
+振幅エンコーディングを試すことができます。DINO 特徴量を使用する際は
+自動的に PCA による次元削減が行われます。
 
 ```bash
-python src/vqc_llp_example.py --use-dino --preload --amplitude
+python src/vqc_llp_example.py --use-dino --amplitude
 ```
 
-`--use-dino` は `get_transform(use_dino=True)` を、`--preload` は
-`preload_dataset(..., pca_dim=NUM_QUBITS)` を適用します。
+`--use-dino` は `get_transform(use_dino=True)` を適用し、内部で
+`preload_dataset(..., pca_dim=NUM_QUBITS)` を使って特徴量を `NUM_QUBITS`
+次元に圧縮します。
 `--amplitude` を指定すると各サンプルを `quantum_utils.amplitude_encoding`
 で量子状態に変換してから学習を行います。
 `--feature-map` には `zz` や `pauli` のほか `adaptive`、`npqc`、`yzcx`、`amplitude`
